@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 
+from app.market_data.csv_loader import load_candles_from_csv
 from app.strategies.models import Strategy
+from app.strategies.simple_trend import generate_simple_trend_signal
 
 router = APIRouter(prefix="/strategies", tags=["Strategies"])
 
@@ -24,3 +28,9 @@ def list_strategies():
             status="Planned",
         ),
     ]
+
+
+@router.get("/simple-trend-signal")
+def get_simple_trend_signal():
+    candles = load_candles_from_csv(Path("data/eur_usd_sample.csv"))
+    return generate_simple_trend_signal(candles)

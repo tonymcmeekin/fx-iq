@@ -1,47 +1,13 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 
+from app.backtesting.calculations import calculate_backtest_result
+from app.backtesting.engine import run_simple_trend_backtest
 from app.backtesting.models import BacktestResult, MockTrade
+from app.market_data.csv_loader import load_candles_from_csv
 
 router = APIRouter(prefix="/backtesting", tags=["Backtesting"])
-
-
-def calculate_max_drawdown(trades: list[MockTrade]) -> float:
-    equity = 100.0
-    peak = equity
-    max_drawdown = 0.0
-
-    for trade in trades:
-        equity = equity * (1 + trade.profit_percent / 100)
-        peak = max(peak, equity)
-        drawdown = ((peak - equity) / peak) * 100
-        max_drawdown = max(max_drawdown, drawdown)
-
-    return round(max_drawdown, 2)
-
-
-def calculate_backtest_result(
-    strategy_name: str,
-    symbol: str,
-    trades: list[MockTrade],
-) -> BacktestResult:
-    total_trades = len(trades)
-    winning_trades = len([trade for trade in trades if trade.profit_percent > 0])
-    losing_trades = len([trade for trade in trades if trade.profit_percent <= 0])
-
-    total_profit = sum(trade.profit_percent for trade in trades)
-    win_rate = (winning_trades / total_trades) * 100 if total_trades else 0
-    max_drawdown = calculate_max_drawdown(trades)
-
-    return BacktestResult(
-        strategy_name=strategy_name,
-        symbol=symbol,
-        total_trades=total_trades,
-        winning_trades=winning_trades,
-        losing_trades=losing_trades,
-        win_rate_percent=round(win_rate, 2),
-        profit_percent=round(total_profit, 2),
-        max_drawdown_percent=max_drawdown,
-    )
 
 
 @router.get("/sample", response_model=BacktestResult)
@@ -59,3 +25,9 @@ def sample_backtest():
         symbol="EUR_USD",
         trades=trades,
     )
+
+
+@router.get("/simple-trend", response_model=BacktestResult)
+def simple_trend_backtest():
+    candles = load_candles_from_csv(Path("data/eur_usd_sample.csv"))
+    return run_simple_trend_backtest(candles)

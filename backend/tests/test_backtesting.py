@@ -1,5 +1,5 @@
+from app.backtesting.calculations import calculate_backtest_result, calculate_max_drawdown
 from app.backtesting.models import MockTrade
-from app.backtesting.router import calculate_backtest_result, calculate_max_drawdown
 
 
 def test_calculate_backtest_result():
