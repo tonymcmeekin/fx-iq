@@ -8,3 +8,6 @@ class SimulatedTrade(BaseModel):
     exit_price: float
     profit_percent: float
     exit_reason: str
+    stop_loss: float | None = None
+    take_profit: float | None = None
+    candles_held: int = 1
