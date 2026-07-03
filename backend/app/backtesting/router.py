@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from app.backtesting.calculations import calculate_backtest_result
-from app.backtesting.engine import run_simple_trend_backtest
+from app.backtesting.engine import run_strategy_backtest
 from app.backtesting.models import BacktestResult, MockTrade
 from app.market_data.csv_loader import load_candles_from_csv
 
@@ -27,7 +27,7 @@ def sample_backtest():
     )
 
 
-@router.get("/simple-trend", response_model=BacktestResult)
-def simple_trend_backtest():
+@router.get("/run/{strategy_name}", response_model=BacktestResult)
+def run_backtest(strategy_name: str):
     candles = load_candles_from_csv(Path("data/eur_usd_sample.csv"))
-    return run_simple_trend_backtest(candles)
+    return run_strategy_backtest(strategy_name, candles)

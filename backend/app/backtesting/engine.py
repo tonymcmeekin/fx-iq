@@ -1,33 +1,33 @@
 from app.backtesting.calculations import calculate_backtest_result
 from app.backtesting.models import BacktestResult, MockTrade
 from app.market_data.models import Candle
-from app.strategies.simple_trend import generate_simple_trend_signal
+from app.strategies.manager import run_strategy
+from app.trading.simulator import simulate_one_candle_trade
 
 
-def run_simple_trend_backtest(candles: list[Candle]) -> BacktestResult:
+def run_strategy_backtest(strategy_name: str, candles: list[Candle]) -> BacktestResult:
     trades: list[MockTrade] = []
 
     for index in range(1, len(candles)):
         previous_candle = candles[index - 1]
         current_candle = candles[index]
 
-        signal = generate_simple_trend_signal([previous_candle, current_candle])
+        signal = run_strategy(strategy_name, [previous_candle, current_candle])
+        simulated_trade = simulate_one_candle_trade(
+            previous_candle=previous_candle,
+            current_candle=current_candle,
+            direction=signal.direction,
+        )
 
-        if signal.direction == "BUY":
-            profit_percent = (
-                (current_candle.close - previous_candle.close) / previous_candle.close
-            ) * 100
-        elif signal.direction == "SELL":
-            profit_percent = (
-                (previous_candle.close - current_candle.close) / previous_candle.close
-            ) * 100
-        else:
-            profit_percent = 0.0
-
-        trades.append(MockTrade(symbol=current_candle.symbol, profit_percent=profit_percent))
+        trades.append(
+            MockTrade(
+                symbol=simulated_trade.symbol,
+                profit_percent=simulated_trade.profit_percent,
+            )
+        )
 
     return calculate_backtest_result(
-        strategy_name="Simple Trend",
+        strategy_name=strategy_name,
         symbol=candles[-1].symbol,
         trades=trades,
     )
