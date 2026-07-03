@@ -12,6 +12,7 @@ app.include_router(strategy_router)
 app.include_router(signals_router)
 app.include_router(risk_router)
 
+
 @app.get("/")
 def root():
     return {
@@ -26,4 +27,5 @@ def health_check():
         "status": "healthy",
     }
     from app.risk.router import router as risk_router
+
     app.include_router(risk_router)
