@@ -2,7 +2,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.indicators.moving_averages import simple_moving_average
+from app.indicators.moving_averages import (
+    exponential_moving_average,
+    simple_moving_average,
+)
 from app.market_data.models import Candle
 
 
@@ -45,3 +48,17 @@ def test_simple_moving_average_requires_enough_candles():
 
     with pytest.raises(ValueError):
         simple_moving_average(candles, period=3)
+
+
+def test_exponential_moving_average():
+    candles = [
+        make_candle(1.0),
+        make_candle(2.0),
+        make_candle(3.0),
+        make_candle(4.0),
+        make_candle(5.0),
+    ]
+
+    result = exponential_moving_average(candles, period=3)
+
+    assert result == 4.0
