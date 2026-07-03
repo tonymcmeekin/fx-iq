@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import APIRouter
 
 from app.market_data.models import Candle
@@ -12,7 +13,7 @@ def get_sample_candles() -> list[Candle]:
         Candle(
             symbol="EUR_USD",
             timeframe="H1",
-            timestamp=datetime(2026, 7, 3, 8, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 7, 3, 8, 0, tzinfo=UTC),
             open=1.1720,
             high=1.1742,
             low=1.1710,
@@ -22,7 +23,7 @@ def get_sample_candles() -> list[Candle]:
         Candle(
             symbol="EUR_USD",
             timeframe="H1",
-            timestamp=datetime(2026, 7, 3, 9, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 7, 3, 9, 0, tzinfo=UTC),
             open=1.1735,
             high=1.1760,
             low=1.1728,
