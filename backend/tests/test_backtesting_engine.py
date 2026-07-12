@@ -121,3 +121,53 @@ def test_backtest_enters_at_next_candle_open():
 
     assert result.total_trades == 1
     assert result.trades[0].entry_price == 110.0
+
+def test_backtest_can_filter_trade_direction():
+    candles = make_candles(
+        [100.0, 101.0, 102.0, 101.0, 100.0, 99.0, 98.0]
+    )
+
+    buy_only = run_strategy_backtest(
+        strategy_name="simple_trend",
+        candles=candles,
+        stop_loss_percent=50.0,
+        take_profit_percent=50.0,
+        allowed_directions={"BUY"},
+    )
+
+    sell_only = run_strategy_backtest(
+        strategy_name="simple_trend",
+        candles=candles,
+        stop_loss_percent=50.0,
+        take_profit_percent=50.0,
+        allowed_directions={"SELL"},
+    )
+
+    assert all(
+        trade.direction == "BUY"
+        for trade in buy_only.trades
+    )
+    assert all(
+        trade.direction == "SELL"
+        for trade in sell_only.trades
+    )
+
+
+def test_backtest_rejects_invalid_direction_filter():
+    candles = make_candles([100.0, 101.0, 102.0])
+
+    try:
+        run_strategy_backtest(
+            strategy_name="simple_trend",
+            candles=candles,
+            allowed_directions={"HOLD"},
+        )
+    except ValueError as error:
+        assert str(error) == (
+            "Allowed directions must contain only BUY or SELL."
+        )
+    else:
+        raise AssertionError(
+            "Expected invalid direction filter to be rejected."
+        )
+

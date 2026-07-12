@@ -16,6 +16,7 @@ def run_strategy_backtest(
     take_profit_percent: float = 2.0,
     spread_pips: float = 0.0,
     commission_percent: float = 0.0,
+    allowed_directions: set[str] | None = None,
 ) -> BacktestResult:
     if not candles:
         raise ValueError("At least one candle is required.")
@@ -28,6 +29,14 @@ def run_strategy_backtest(
 
     if commission_percent < 0:
         raise ValueError("Commission percent cannot be negative.")
+
+    if allowed_directions is not None:
+        invalid_directions = allowed_directions - {"BUY", "SELL"}
+
+        if invalid_directions:
+            raise ValueError(
+                "Allowed directions must contain only BUY or SELL."
+            )
 
     trades: list[MockTrade] = []
     trade_ledger: list[SimulatedTrade] = []
@@ -42,6 +51,13 @@ def run_strategy_backtest(
             continue
 
         if signal.direction == "HOLD":
+            index += 1
+            continue
+
+        if (
+            allowed_directions is not None
+            and signal.direction not in allowed_directions
+        ):
             index += 1
             continue
 
