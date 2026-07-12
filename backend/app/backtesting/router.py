@@ -9,9 +9,19 @@ from app.market_data.csv_loader import load_candles_from_csv
 
 router = APIRouter(prefix="/backtesting", tags=["Backtesting"])
 
+HISTORICAL_DATA_FILE = Path("data/eur_usd_daily.csv")
+SAMPLE_DATA_FILE = Path("data/eur_usd_sample.csv")
+
+
+def get_backtest_data_file() -> Path:
+    if HISTORICAL_DATA_FILE.exists():
+        return HISTORICAL_DATA_FILE
+
+    return SAMPLE_DATA_FILE
+
 
 @router.get("/sample", response_model=BacktestResult)
-def sample_backtest():
+def sample_backtest() -> BacktestResult:
     trades = [
         MockTrade(symbol="EUR_USD", profit_percent=1.2),
         MockTrade(symbol="EUR_USD", profit_percent=-0.5),
@@ -28,6 +38,8 @@ def sample_backtest():
 
 
 @router.get("/run/{strategy_name}", response_model=BacktestResult)
-def run_backtest(strategy_name: str):
-    candles = load_candles_from_csv(Path("data/eur_usd_sample.csv"))
+def run_backtest(strategy_name: str) -> BacktestResult:
+    data_file = get_backtest_data_file()
+    candles = load_candles_from_csv(data_file)
+
     return run_strategy_backtest(strategy_name, candles)

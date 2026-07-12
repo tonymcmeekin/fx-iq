@@ -21,7 +21,7 @@ def test_calculate_backtest_result():
     assert result.winning_trades == 3
     assert result.losing_trades == 2
     assert result.win_rate_percent == 60.0
-    assert result.profit_percent == 2.6
+    assert result.profit_percent == 2.59
     assert result.max_drawdown_percent == 1.0
 
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.analytics.models import EquityPoint
 from app.trading.models import SimulatedTrade
@@ -18,6 +18,5 @@ class BacktestResult(BaseModel):
     win_rate_percent: float
     profit_percent: float
     max_drawdown_percent: float
-    trades: list[SimulatedTrade] = []
-    equity_curve: list[EquityPoint] = []
-    
+    trades: list[SimulatedTrade] = Field(default_factory=list)
+    equity_curve: list[EquityPoint] = Field(default_factory=list)
