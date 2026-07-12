@@ -1,5 +1,8 @@
 from pydantic import BaseModel
 
+from app.analytics.models import EquityPoint
+from app.trading.models import SimulatedTrade
+
 
 class MockTrade(BaseModel):
     symbol: str
@@ -15,3 +18,6 @@ class BacktestResult(BaseModel):
     win_rate_percent: float
     profit_percent: float
     max_drawdown_percent: float
+    trades: list[SimulatedTrade] = []
+    equity_curve: list[EquityPoint] = []
+    
