@@ -35,7 +35,7 @@ def test_backtest_does_not_create_overlapping_trades():
     )
 
     assert result.total_trades == 1
-    assert result.trades[0].candles_held == 4
+    assert result.trades[0].candles_held == 3
 
 
 def test_backtest_rejects_empty_candle_list():
@@ -45,3 +45,22 @@ def test_backtest_rejects_empty_candle_list():
         assert str(error) == "At least one candle is required."
     else:
         raise AssertionError("Expected ValueError for empty candle list.")
+
+
+def test_backtest_enters_after_signal_candle():
+    candles = make_candles(
+        [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
+    )
+
+    result = run_strategy_backtest(
+        strategy_name="simple_trend",
+        candles=candles,
+        stop_loss_percent=50.0,
+        take_profit_percent=50.0,
+    )
+
+    assert result.total_trades == 1
+
+    # The BUY signal is generated after the second candle closes at 101.
+    # A realistic backtest must enter on the following candle, not at 101.
+    assert result.trades[0].entry_price == 102.0

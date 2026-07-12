@@ -39,7 +39,10 @@ def run_strategy_backtest(
             index += 1
             continue
 
-        trade_candles = candles[index:]
+        # The signal is only known after candles[index] has closed.
+        # Enter no earlier than the next candle to avoid look-ahead bias.
+        entry_index = index + 1
+        trade_candles = candles[entry_index:]
 
         if len(trade_candles) < 2:
             break
@@ -61,7 +64,9 @@ def run_strategy_backtest(
             )
         )
 
-        index += max(simulated_trade.candles_held, 1) + 1
+        # Move to the candle after the trade exit.
+        # One candle is also consumed between signal and entry.
+        index = entry_index + max(simulated_trade.candles_held, 1)
 
     return calculate_backtest_result(
         strategy_name=strategy_name,
