@@ -35,6 +35,9 @@ def calculate_trading_cost_percent(
     if slippage_pips < 0:
         raise ValueError("Slippage pips cannot be negative.")
 
+    if pip_size <= 0:
+        raise ValueError("Pip size must be greater than zero.")
+
     total_pip_cost = spread_pips + slippage_pips
     pip_cost_price = total_pip_cost * pip_size
     pip_cost_percent = (pip_cost_price / entry_price) * 100
