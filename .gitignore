@@ -9,3 +9,6 @@ __pycache__/
 .env
 backend/.env
 backend/data/oanda_*.csv
+
+# Generated research reports
+backend/*_results.txt
