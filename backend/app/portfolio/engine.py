@@ -299,6 +299,7 @@ def run_portfolio_backtest(
     initial_balance: float = 10000.0,
     max_portfolio_leverage: float = 20.0,
     max_total_risk_percent: float = 1.0,
+    trading_start_timestamp: datetime | None = None,
 ) -> PortfolioBacktestResult:
     _validate_inputs(
         candles_by_symbol=candles_by_symbol,
@@ -347,8 +348,14 @@ def run_portfolio_backtest(
     maximum_open_positions = 0
     maximum_gross_leverage = 0.0
 
-    for timestamp in timeline:
+    for timeline_index, timestamp in enumerate(timeline):
         current_candles = candles_at_timestamp[timestamp]
+
+        next_timestamp = (
+            timeline[timeline_index + 1]
+            if timeline_index + 1 < len(timeline)
+            else None
+        )
 
         for symbol, candle in current_candles.items():
             histories[symbol].append(candle)
@@ -367,6 +374,12 @@ def run_portfolio_backtest(
             candle = current_candles.get(config.symbol)
 
             if candle is None:
+                continue
+
+            if (
+                trading_start_timestamp is not None
+                and timestamp < trading_start_timestamp
+            ):
                 continue
 
             pending = pending_entries.pop(config_index)
@@ -554,6 +567,16 @@ def run_portfolio_backtest(
             if config.symbol not in current_candles:
                 continue
 
+            if (
+                trading_start_timestamp is not None
+                and (
+                    next_timestamp is None
+                    or next_timestamp
+                    < trading_start_timestamp
+                )
+            ):
+                continue
+
             try:
                 signal = run_strategy(
                     config.strategy_name,
@@ -715,9 +738,18 @@ def run_portfolio_backtest(
             )
         )
 
+    reported_equity_curve = [
+        point
+        for point in equity_curve
+        if (
+            trading_start_timestamp is None
+            or point.timestamp >= trading_start_timestamp
+        )
+    ]
+
     final_equity = (
-        equity_curve[-1].equity
-        if equity_curve
+        reported_equity_curve[-1].equity
+        if reported_equity_curve
         else balance
     )
 
@@ -732,7 +764,7 @@ def run_portfolio_backtest(
             2,
         ),
         max_drawdown_percent=_maximum_drawdown(
-            equity_curve
+            reported_equity_curve
         ),
         total_trades=total_trades,
         winning_trades=winning_trades,
@@ -750,6 +782,6 @@ def run_portfolio_backtest(
             4,
         ),
         trades=trades,
-        equity_curve=equity_curve,
+        equity_curve=reported_equity_curve,
         strategy_summaries=summaries,
     )
