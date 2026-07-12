@@ -11,9 +11,17 @@ def run_strategy_backtest(
     candles: list[Candle],
     stop_loss_percent: float = 1.0,
     take_profit_percent: float = 2.0,
+    spread_pips: float = 0.0,
+    commission_percent: float = 0.0,
 ) -> BacktestResult:
     if not candles:
         raise ValueError("At least one candle is required.")
+
+    if spread_pips < 0:
+        raise ValueError("Spread pips cannot be negative.")
+
+    if commission_percent < 0:
+        raise ValueError("Commission percent cannot be negative.")
 
     trades: list[MockTrade] = []
     trade_ledger: list[SimulatedTrade] = []
@@ -41,6 +49,8 @@ def run_strategy_backtest(
             direction=signal.direction,
             stop_loss_percent=stop_loss_percent,
             take_profit_percent=take_profit_percent,
+            spread_pips=spread_pips,
+            commission_percent=commission_percent,
         )
 
         trade_ledger.append(simulated_trade)
@@ -51,8 +61,6 @@ def run_strategy_backtest(
             )
         )
 
-        # Move beyond the candle on which the trade exited.
-        # This prevents positions from overlapping.
         index += max(simulated_trade.candles_held, 1) + 1
 
     return calculate_backtest_result(

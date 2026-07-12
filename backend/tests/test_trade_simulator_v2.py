@@ -99,3 +99,54 @@ def test_trade_closes_at_final_candle():
     assert trade.exit_reason == "Closed at final candle."
     assert trade.exit_price == 100.5
     assert trade.profit_percent == 0.5
+
+
+def test_spread_is_deducted_from_trade_profit():
+    trade = simulate_multi_candle_trade(
+        candles=[
+            make_candle(1.1000),
+            make_candle(1.1110, high=1.1110, low=1.1000),
+        ],
+        direction="BUY",
+        stop_loss_percent=10.0,
+        take_profit_percent=10.0,
+        spread_pips=1.0,
+    )
+
+    assert trade.gross_profit_percent == 1.0
+    assert trade.trading_cost_percent == 0.009091
+    assert trade.profit_percent == 0.990909
+    assert trade.spread_pips == 1.0
+
+
+def test_commission_is_deducted_from_trade_profit():
+    trade = simulate_multi_candle_trade(
+        candles=[
+            make_candle(100.0),
+            make_candle(101.0, high=101.0, low=100.0),
+        ],
+        direction="BUY",
+        stop_loss_percent=10.0,
+        take_profit_percent=10.0,
+        commission_percent=0.1,
+    )
+
+    assert trade.gross_profit_percent == 1.0
+    assert trade.trading_cost_percent == 0.1
+    assert trade.profit_percent == 0.9
+
+
+def test_negative_spread_is_rejected():
+    try:
+        simulate_multi_candle_trade(
+            candles=[
+                make_candle(100.0),
+                make_candle(101.0),
+            ],
+            direction="BUY",
+            spread_pips=-1.0,
+        )
+    except ValueError as error:
+        assert str(error) == "Spread pips cannot be negative."
+    else:
+        raise AssertionError("Expected negative spread to be rejected.")
