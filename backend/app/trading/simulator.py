@@ -32,14 +32,14 @@ def calculate_trading_cost_percent(
     if commission_percent < 0:
         raise ValueError("Commission percent cannot be negative.")
 
-    if pip_size <= 0:
-        raise ValueError("Pip size must be greater than zero.")
+    if slippage_pips < 0:
+        raise ValueError("Slippage pips cannot be negative.")
 
-    spread_price = spread_pips * pip_size
-    spread_cost_percent = (spread_price / entry_price) * 100
+    total_pip_cost = spread_pips + slippage_pips
+    pip_cost_price = total_pip_cost * pip_size
+    pip_cost_percent = (pip_cost_price / entry_price) * 100
 
-    return spread_cost_percent + commission_percent
-
+    return pip_cost_percent + commission_percent
 
 def simulate_multi_candle_trade(
     candles: list[Candle],
