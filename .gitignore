@@ -8,3 +8,4 @@ __pycache__/
 # Local secrets
 .env
 backend/.env
+backend/data/oanda_*.csv
