@@ -1,7 +1,10 @@
 from app.backtesting.calculations import calculate_backtest_result
 from app.backtesting.models import BacktestResult, MockTrade
 from app.market_data.models import Candle
-from app.strategies.manager import run_strategy
+from app.strategies.manager import (
+    list_available_strategy_names,
+    run_strategy,
+)
 from app.trading.models import SimulatedTrade
 from app.trading.simulator import simulate_multi_candle_trade
 
@@ -16,6 +19,9 @@ def run_strategy_backtest(
 ) -> BacktestResult:
     if not candles:
         raise ValueError("At least one candle is required.")
+
+    if strategy_name not in list_available_strategy_names():
+        raise ValueError(f"Unknown strategy: {strategy_name}")
 
     if spread_pips < 0:
         raise ValueError("Spread pips cannot be negative.")
