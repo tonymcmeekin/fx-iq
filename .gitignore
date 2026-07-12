@@ -4,3 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# Local secrets
+.env
+backend/.env
