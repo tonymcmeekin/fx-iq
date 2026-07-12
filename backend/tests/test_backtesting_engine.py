@@ -64,3 +64,60 @@ def test_backtest_enters_after_signal_candle():
     # The BUY signal is generated after the second candle closes at 101.
     # A realistic backtest must enter on the following candle, not at 101.
     assert result.trades[0].entry_price == 102.0
+
+
+def test_backtest_enters_at_next_candle_open():
+    start = datetime(2026, 7, 3, 8, tzinfo=UTC)
+
+    candles = [
+        Candle(
+            symbol="EUR_USD",
+            timeframe="H1",
+            timestamp=start,
+            open=100.0,
+            high=100.1,
+            low=99.9,
+            close=100.0,
+            volume=1000,
+        ),
+        Candle(
+            symbol="EUR_USD",
+            timeframe="H1",
+            timestamp=start + timedelta(hours=1),
+            open=100.0,
+            high=101.1,
+            low=99.9,
+            close=101.0,
+            volume=1000,
+        ),
+        Candle(
+            symbol="EUR_USD",
+            timeframe="H1",
+            timestamp=start + timedelta(hours=2),
+            open=110.0,
+            high=110.5,
+            low=109.5,
+            close=110.0,
+            volume=1000,
+        ),
+        Candle(
+            symbol="EUR_USD",
+            timeframe="H1",
+            timestamp=start + timedelta(hours=3),
+            open=110.0,
+            high=110.5,
+            low=109.5,
+            close=110.0,
+            volume=1000,
+        ),
+    ]
+
+    result = run_strategy_backtest(
+        strategy_name="simple_trend",
+        candles=candles,
+        stop_loss_percent=50.0,
+        take_profit_percent=50.0,
+    )
+
+    assert result.total_trades == 1
+    assert result.trades[0].entry_price == 110.0

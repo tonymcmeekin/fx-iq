@@ -31,6 +31,9 @@ def calculate_trading_cost_percent(
     if commission_percent < 0:
         raise ValueError("Commission percent cannot be negative.")
 
+    if pip_size <= 0:
+        raise ValueError("Pip size must be greater than zero.")
+
     spread_price = spread_pips * pip_size
     spread_cost_percent = (spread_price / entry_price) * 100
 
@@ -56,7 +59,10 @@ def simulate_multi_candle_trade(
         raise ValueError("Take-profit percent must be greater than zero.")
 
     entry_candle = candles[0]
-    entry_price = entry_candle.close
+
+    # A signal is generated after the previous candle closes.
+    # The earliest realistic entry is the next candle's opening price.
+    entry_price = entry_candle.open
 
     if direction == "BUY":
         stop_loss = entry_price * (1 - stop_loss_percent / 100)
@@ -68,8 +74,8 @@ def simulate_multi_candle_trade(
         return SimulatedTrade(
             symbol=entry_candle.symbol,
             direction=direction,
-            entry_price=entry_price,
-            exit_price=entry_price,
+            entry_price=round(entry_price, 6),
+            exit_price=round(entry_price, 6),
             profit_percent=0.0,
             gross_profit_percent=0.0,
             trading_cost_percent=0.0,
@@ -81,37 +87,55 @@ def simulate_multi_candle_trade(
             candles_held=0,
         )
 
-    for index, candle in enumerate(candles[1:], start=1):
+    exit_price = candles[-1].close
+    exit_reason = "Closed at final candle."
+    candles_held = len(candles) - 1
+
+    # Include the entry candle because the position exists from its open.
+    for index, candle in enumerate(candles):
         if direction == "BUY":
-            if candle.low <= stop_loss:
+            stop_hit = candle.low <= stop_loss
+            target_hit = candle.high >= take_profit
+
+            # OHLC data does not reveal which level was reached first.
+            # Use the stop-loss when both are touched to avoid optimistic bias.
+            if stop_hit:
                 exit_price = stop_loss
-                exit_reason = "Stop-loss hit."
+                exit_reason = (
+                    "Stop-loss used: both stop-loss and take-profit "
+                    "were touched in the same candle."
+                    if target_hit
+                    else "Stop-loss hit."
+                )
                 candles_held = index
                 break
 
-            if candle.high >= take_profit:
+            if target_hit:
                 exit_price = take_profit
                 exit_reason = "Take-profit hit."
                 candles_held = index
                 break
 
-        if direction == "SELL":
-            if candle.high >= stop_loss:
+        elif direction == "SELL":
+            stop_hit = candle.high >= stop_loss
+            target_hit = candle.low <= take_profit
+
+            if stop_hit:
                 exit_price = stop_loss
-                exit_reason = "Stop-loss hit."
+                exit_reason = (
+                    "Stop-loss used: both stop-loss and take-profit "
+                    "were touched in the same candle."
+                    if target_hit
+                    else "Stop-loss hit."
+                )
                 candles_held = index
                 break
 
-            if candle.low <= take_profit:
+            if target_hit:
                 exit_price = take_profit
                 exit_reason = "Take-profit hit."
                 candles_held = index
                 break
-    else:
-        final_candle = candles[-1]
-        exit_price = final_candle.close
-        exit_reason = "Closed at final candle."
-        candles_held = len(candles) - 1
 
     gross_profit_percent = calculate_profit_percent(
         direction=direction,
