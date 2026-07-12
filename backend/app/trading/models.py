@@ -15,3 +15,14 @@ class SimulatedTrade(BaseModel):
     trading_cost_percent: float = 0.0
     spread_pips: float = 0.0
     commission_percent: float = 0.0
+    slippage_pips: float = 0.0
+    account_balance_before: float | None = None
+    risk_amount: float | None = None
+    position_size_units: float | None = None
+    notional_value: float | None = None
+    leverage_used: float | None = None
+    position_limited_by_leverage: bool = False
+    gross_profit_percent: float = 0.0
+    trading_cost_percent: float = 0.0
+    spread_pips: float = 0.0
+    commission_percent: float = 0.0

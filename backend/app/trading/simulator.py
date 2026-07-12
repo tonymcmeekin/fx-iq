@@ -20,6 +20,7 @@ def calculate_trading_cost_percent(
     entry_price: float,
     spread_pips: float = 0.0,
     commission_percent: float = 0.0,
+    slippage_pips: float = 0.0,
     pip_size: float = 0.0001,
 ) -> float:
     if entry_price <= 0:
@@ -47,6 +48,7 @@ def simulate_multi_candle_trade(
     take_profit_percent: float = 2.0,
     spread_pips: float = 0.0,
     commission_percent: float = 0.0,
+    slippage_pips: float = 0.0,
     pip_size: float = 0.0001,
 ) -> SimulatedTrade:
     if len(candles) < 2:
@@ -81,6 +83,7 @@ def simulate_multi_candle_trade(
             trading_cost_percent=0.0,
             spread_pips=spread_pips,
             commission_percent=commission_percent,
+            slippage_pips=slippage_pips,
             exit_reason="No trade.",
             stop_loss=None,
             take_profit=None,
@@ -147,6 +150,7 @@ def simulate_multi_candle_trade(
         entry_price=entry_price,
         spread_pips=spread_pips,
         commission_percent=commission_percent,
+        slippage_pips=slippage_pips,
         pip_size=pip_size,
     )
 
@@ -162,6 +166,7 @@ def simulate_multi_candle_trade(
         trading_cost_percent=round(trading_cost_percent, 6),
         spread_pips=spread_pips,
         commission_percent=commission_percent,
+        slippage_pips=slippage_pips,
         exit_reason=exit_reason,
         stop_loss=round(stop_loss, 6),
         take_profit=round(take_profit, 6),
@@ -175,6 +180,7 @@ def simulate_one_candle_trade(
     direction: str,
     spread_pips: float = 0.0,
     commission_percent: float = 0.0,
+    slippage_pips: float = 0.0,
 ) -> SimulatedTrade:
     return simulate_multi_candle_trade(
         candles=[previous_candle, current_candle],
@@ -183,4 +189,5 @@ def simulate_one_candle_trade(
         take_profit_percent=100.0,
         spread_pips=spread_pips,
         commission_percent=commission_percent,
+        slippage_pips=slippage_pips,
     )
