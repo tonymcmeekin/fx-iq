@@ -1,0 +1,65 @@
+{
+  "fingerprint_algorithm": "SHA-256",
+  "canonical_encoding": "UTF-8 JSON with sorted keys and compact separators",
+  "policy_fingerprint": "e7d20e329a40763febff468508a65df15d519033a37c2db99687384596258720",
+  "frozen_payload": {
+    "markets": [
+      "EUR_GBP",
+      "EUR_JPY",
+      "GBP_JPY",
+      "AUD_JPY",
+      "CAD_JPY",
+      "AUD_CAD"
+    ],
+    "market_data": {
+      "granularity": "D",
+      "price_component": "midpoint",
+      "complete_candles_only": true
+    },
+    "frozen_strategy": {
+      "strategy_name": "atr_breakout",
+      "stop_loss_percent": 1.5,
+      "take_profit_percent": 3.0,
+      "spread_pips": 1.0,
+      "slippage_pips": 0.5,
+      "signal_timing": "after completed daily candle",
+      "entry_timing": "next available daily candle open",
+      "maximum_one_open_position_per_market": true
+    },
+    "frozen_risk_policy": {
+      "policy_name": "validated_close_location_soft_risk",
+      "policy_version": "1.0",
+      "base_risk_percent": 0.5,
+      "reduced_risk_percent": 0.25,
+      "directional_close_location_threshold": 0.8174,
+      "rule": "Reduce risk when directional close location is less than or equal to 0.8174; otherwise retain base risk.",
+      "risk_may_increase_above_base": false,
+      "trade_selection_may_change": false
+    },
+    "portfolio_controls": {
+      "initial_simulated_balance": 10000.0,
+      "account_currency": "GBP",
+      "maximum_total_open_risk_percent": 0.5,
+      "maximum_portfolio_leverage": 30.0,
+      "minimum_position_risk_percent": 0.25,
+      "maximum_position_risk_percent": 0.5
+    },
+    "shadow_control": {
+      "enabled": true,
+      "policy": "fixed_risk",
+      "risk_percent": 0.5,
+      "must_receive_identical_signals": true,
+      "must_preserve_identical_trade_sequence": true,
+      "purpose": "Measure prospective contribution of the validated close-location sizing policy."
+    },
+    "execution_simulation": {
+      "broker_orders_sent": false,
+      "fills_are_simulated": true,
+      "entry_price_source": "next complete candle open",
+      "stop_and_target_evaluation": "daily OHLC",
+      "same_candle_stop_and_target_resolution": "stop_first",
+      "spread_and_slippage_applied": true,
+      "manual_trade_edits_permitted": false
+    }
+  }
+}

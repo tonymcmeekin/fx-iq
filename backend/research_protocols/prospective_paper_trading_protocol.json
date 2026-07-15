@@ -1,0 +1,153 @@
+{
+  "protocol_name": "Trade IQ Prospective Paper Trading",
+  "protocol_version": "1.0",
+  "status": "PREREGISTERED_NOT_STARTED",
+  "mode": "SIMULATION_ONLY",
+  "live_order_submission_permitted": false,
+  "validated_policy_source": {
+    "validation_result_commit": "1c731ff",
+    "validation_results_file": "research_results/untouched_cross_market_validation_results.json",
+    "validation_results_sha256": "50964f9e746310442db6447984e8d18741231620b39c3add3e3720d412aa53b9",
+    "validation_status": "PASSED"
+  },
+  "prospective_period": {
+    "first_eligible_market_date": "2026-07-14",
+    "minimum_calendar_days": 365,
+    "minimum_closed_trades": 50,
+    "both_minimums_required": true,
+    "earliest_eligible_assessment_date": "2027-07-14",
+    "no_backfilling_before_start": true
+  },
+  "markets": [
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "CAD_JPY",
+    "AUD_CAD"
+  ],
+  "market_data": {
+    "provider": "OANDA practice REST API",
+    "granularity": "D",
+    "price_component": "midpoint",
+    "complete_candles_only": true,
+    "daily_collection_target_utc": "23:15",
+    "incomplete_candles_must_be_rejected": true,
+    "historical_validation_files_must_not_be_extended": true,
+    "prospective_data_directory": "data/prospective_paper"
+  },
+  "frozen_strategy": {
+    "strategy_name": "atr_breakout",
+    "stop_loss_percent": 1.5,
+    "take_profit_percent": 3.0,
+    "spread_pips": 1.0,
+    "slippage_pips": 0.5,
+    "signal_timing": "after completed daily candle",
+    "entry_timing": "next available daily candle open",
+    "maximum_one_open_position_per_market": true
+  },
+  "frozen_risk_policy": {
+    "policy_name": "validated_close_location_soft_risk",
+    "policy_version": "1.0",
+    "base_risk_percent": 0.5,
+    "reduced_risk_percent": 0.25,
+    "directional_close_location_threshold": 0.8174,
+    "rule": "Reduce risk when directional close location is less than or equal to 0.8174; otherwise retain base risk.",
+    "risk_may_increase_above_base": false,
+    "trade_selection_may_change": false
+  },
+  "portfolio_controls": {
+    "initial_simulated_balance": 10000.0,
+    "account_currency": "GBP",
+    "maximum_total_open_risk_percent": 0.5,
+    "maximum_portfolio_leverage": 30.0,
+    "minimum_position_risk_percent": 0.25,
+    "maximum_position_risk_percent": 0.5
+  },
+  "shadow_control": {
+    "enabled": true,
+    "policy": "fixed_risk",
+    "risk_percent": 0.5,
+    "must_receive_identical_signals": true,
+    "must_preserve_identical_trade_sequence": true,
+    "purpose": "Measure prospective contribution of the validated close-location sizing policy."
+  },
+  "execution_simulation": {
+    "broker_orders_sent": false,
+    "fills_are_simulated": true,
+    "entry_price_source": "next complete candle open",
+    "stop_and_target_evaluation": "daily OHLC",
+    "same_candle_stop_and_target_resolution": "stop_first",
+    "spread_and_slippage_applied": true,
+    "manual_trade_edits_permitted": false
+  },
+  "append_only_ledger": {
+    "format": "JSONL",
+    "directory": "paper_ledger",
+    "events_file": "paper_ledger/events.jsonl",
+    "state_file": "paper_ledger/state.json",
+    "event_hash_chain_required": true,
+    "duplicate_event_ids_forbidden": true,
+    "existing_events_may_not_be_modified_or_deleted": true,
+    "required_event_types": [
+      "SESSION_STARTED",
+      "MARKET_DATA_COLLECTED",
+      "SIGNAL_EVALUATED",
+      "RISK_DECIDED",
+      "PAPER_POSITION_OPENED",
+      "PAPER_POSITION_MARKED",
+      "PAPER_POSITION_CLOSED",
+      "SESSION_COMPLETED",
+      "SESSION_FAILED"
+    ]
+  },
+  "operational_controls": {
+    "idempotent_daily_runs_required": true,
+    "duplicate_candle_processing_forbidden": true,
+    "policy_fingerprint_verified_each_run": true,
+    "validation_result_hash_verified_each_run": true,
+    "system_clock_recorded_in_utc": true,
+    "software_commit_recorded_each_run": true,
+    "failure_must_be_logged_before_exit": true,
+    "automatic_live_trading_promotion_forbidden": true
+  },
+  "paper_test_pass_criteria": {
+    "all_required": true,
+    "minimum_calendar_days": 365,
+    "minimum_closed_trades": 50,
+    "candidate_net_return_percent_greater_than": 0.0,
+    "candidate_return_must_exceed_shadow_fixed_return": true,
+    "candidate_maximum_drawdown_percent_at_most": 8.0,
+    "candidate_profit_factor_greater_than": 1.0,
+    "markets_with_positive_net_pnl_at_least": 3,
+    "markets_total": 6,
+    "trade_count_must_equal_shadow": true,
+    "trade_sequence_must_equal_shadow": true,
+    "policy_fingerprint_failures_allowed": 0,
+    "validation_hash_failures_allowed": 0,
+    "duplicate_event_ids_allowed": 0,
+    "unexplained_missing_daily_sessions_allowed": 0,
+    "live_orders_sent_allowed": 0
+  },
+  "immediate_stop_conditions": [
+    "Any live broker order is submitted.",
+    "The frozen policy fingerprint changes.",
+    "The preserved validation result hash changes.",
+    "An existing ledger event is modified or deleted.",
+    "A duplicate signal or position is created for the same market candle.",
+    "Risk exceeds 0.5 percent on any position.",
+    "Total open risk exceeds 0.5 percent.",
+    "Simulated portfolio drawdown reaches 8 percent.",
+    "The candidate and fixed shadow trade sequences diverge.",
+    "A calculation uses an incomplete candle or future candle."
+  ],
+  "decision_rules": [
+    "No strategy, threshold, risk, market, cost or execution parameter may be changed during the prospective test.",
+    "No market may be removed because of poor performance.",
+    "The test cannot pass before both 365 calendar days and 50 closed trades have been completed.",
+    "Failure of any required criterion means the prospective paper test fails.",
+    "A failed prospective test must not be repaired by retuning against its accumulated data.",
+    "A passed prospective test permits consideration of a separately controlled OANDA practice-account execution trial.",
+    "A passed prospective test does not authorise live-money trading."
+  ]
+}
