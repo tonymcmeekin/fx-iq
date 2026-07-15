@@ -208,3 +208,39 @@ def test_regime_helper_never_increases_risk():
     )
 
     assert 0 < risk <= 0.5
+
+
+
+def test_direction_aware_callback_receives_pending_trade_direction():
+    candles = make_candles()
+    observed_directions = []
+
+    def direction_aware_adjuster(
+        config,
+        history,
+        direction,
+    ):
+        assert history
+        observed_directions.append(direction)
+        return config.risk_per_trade_percent
+
+    result = run_portfolio_backtest(
+        candles_by_symbol={
+            "EUR_USD": candles,
+        },
+        strategy_configs=[
+            strategy_config(),
+        ],
+        risk_percent_adjuster=direction_aware_adjuster,
+    )
+
+    assert result.trades
+    assert observed_directions
+    assert all(
+        direction in {"BUY", "SELL"}
+        for direction in observed_directions
+    )
+    assert (
+        observed_directions[0]
+        == result.trades[0].direction
+    )

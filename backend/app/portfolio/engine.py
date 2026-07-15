@@ -1,3 +1,4 @@
+import inspect
 from collections.abc import Callable
 from collections import defaultdict
 from dataclasses import dataclass
@@ -301,10 +302,7 @@ def run_portfolio_backtest(
     max_portfolio_leverage: float = 20.0,
     max_total_risk_percent: float = 1.0,
     trading_start_timestamp: datetime | None = None,
-    risk_percent_adjuster: Callable[
-        [PortfolioStrategyConfig, list[Candle]],
-        float,
-    ]
+    risk_percent_adjuster: Callable[..., float]
     | None = None,
 ) -> PortfolioBacktestResult:
     _validate_inputs(
@@ -424,12 +422,48 @@ def run_portfolio_backtest(
                     config.symbol
                 ][:-1]
 
-                adjusted_risk_percent = (
-                    risk_percent_adjuster(
-                        config,
-                        pre_entry_history,
-                    )
+                callback_signature = inspect.signature(
+                    risk_percent_adjuster
                 )
+
+                callback_parameters = list(
+                    callback_signature.parameters.values()
+                )
+
+                positional_parameters = [
+                    parameter
+                    for parameter in callback_parameters
+                    if parameter.kind
+                    in {
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    }
+                ]
+
+                accepts_variable_arguments = any(
+                    parameter.kind
+                    == inspect.Parameter.VAR_POSITIONAL
+                    for parameter in callback_parameters
+                )
+
+                if (
+                    accepts_variable_arguments
+                    or len(positional_parameters) >= 3
+                ):
+                    adjusted_risk_percent = (
+                        risk_percent_adjuster(
+                            config,
+                            pre_entry_history,
+                            pending.direction,
+                        )
+                    )
+                else:
+                    adjusted_risk_percent = (
+                        risk_percent_adjuster(
+                            config,
+                            pre_entry_history,
+                        )
+                    )
 
                 if adjusted_risk_percent <= 0:
                     raise ValueError(
