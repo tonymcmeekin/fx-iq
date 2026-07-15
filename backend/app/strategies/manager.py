@@ -3,6 +3,9 @@ from collections.abc import Callable
 from app.market_data.models import Candle
 from app.signals.models import TradeSignal
 from app.strategies.atr_breakout import generate_atr_breakout_signal
+from app.strategies.atr_regime_filtered import (
+    generate_atr_regime_filtered_signal,
+)
 from app.strategies.ema_crossover import generate_ema_crossover_signal
 from app.strategies.simple_trend import generate_simple_trend_signal
 
@@ -10,6 +13,7 @@ StrategyFunction = Callable[[list[Candle]], TradeSignal]
 
 STRATEGIES: dict[str, StrategyFunction] = {
     "atr_breakout": generate_atr_breakout_signal,
+    "atr_regime_filtered": generate_atr_regime_filtered_signal,
     "simple_trend": generate_simple_trend_signal,
     "ema_crossover": generate_ema_crossover_signal,
 }
