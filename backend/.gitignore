@@ -29,3 +29,7 @@ data/untouched_validation/*.csv
 data/untouched_validation/*.csv.sha256
 
 untouched_cross_market_validation_console.txt
+
+# Prospective paper-trading runtime data
+paper_ledger/
+data/prospective_paper/
