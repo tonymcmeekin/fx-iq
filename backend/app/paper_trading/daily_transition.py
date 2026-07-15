@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from app.market_data.models import Candle
@@ -14,6 +14,7 @@ from app.paper_trading.position_lifecycle import (
     evaluate_open_position,
 )
 from app.paper_trading.runtime_state import (
+    mark_candle_processed,
     read_runtime_state,
     verify_runtime_state,
     write_runtime_state,
@@ -22,6 +23,112 @@ from app.paper_trading.runtime_state import (
 
 class DailyTransitionError(RuntimeError):
     """Raised when an offline paper transition is invalid."""
+
+
+def parse_checkpoint(
+    value: str,
+) -> datetime:
+    parsed = datetime.fromisoformat(
+        value.replace(
+            "Z",
+            "+00:00",
+        )
+    )
+
+    if parsed.tzinfo is None:
+        raise DailyTransitionError(
+            "Processed-candle checkpoint must be "
+            "timezone-aware."
+        )
+
+    return parsed.astimezone(
+        UTC
+    )
+
+
+def legacy_market_checkpoint(
+    state: dict,
+    *,
+    market: str,
+) -> datetime | None:
+    """
+    Infer a safe checkpoint for runtime-state files created before
+    explicit processed-candle timestamps existed.
+
+    A pending signal means its signal candle has already been used
+    to create that pending entry. An open position means its entry
+    candle has already been processed.
+    """
+    candidates: list[
+        datetime
+    ] = []
+
+    pending = state[
+        "pending_entries"
+    ].get(market)
+
+    if isinstance(pending, dict):
+        signal_timestamp = pending.get(
+            "signal_candle_timestamp"
+        )
+
+        if isinstance(
+            signal_timestamp,
+            str,
+        ):
+            candidates.append(
+                parse_checkpoint(
+                    signal_timestamp
+                )
+            )
+
+    position = state[
+        "open_positions"
+    ].get(market)
+
+    def collect_position_timestamps(
+        value,
+    ) -> None:
+        if not isinstance(value, dict):
+            return
+
+        for field in (
+            "entry_timestamp",
+            "signal_candle_timestamp",
+        ):
+            timestamp = value.get(
+                field
+            )
+
+            if isinstance(
+                timestamp,
+                str,
+            ):
+                candidates.append(
+                    parse_checkpoint(
+                        timestamp
+                    )
+                )
+
+        for nested in value.values():
+            if isinstance(
+                nested,
+                dict,
+            ):
+                collect_position_timestamps(
+                    nested
+                )
+
+    collect_position_timestamps(
+        position
+    )
+
+    if not candidates:
+        return None
+
+    return max(
+        candidates
+    )
 
 
 def process_new_market_candles(
@@ -96,18 +203,61 @@ def process_new_market_candles(
             "timestamps."
         )
 
-    new_candles = candles[
-        previous_candle_count:
+    checkpoint_text = updated_state[
+        "processed_candle_timestamps"
+    ].get(market)
+
+    if checkpoint_text is not None:
+        checkpoint = parse_checkpoint(
+            checkpoint_text
+        )
+    else:
+        checkpoint = (
+            legacy_market_checkpoint(
+                updated_state,
+                market=market,
+            )
+        )
+
+    if checkpoint is None:
+        # No state-based checkpoint exists. This retains the old
+        # count behaviour for a completely clean market while
+        # legacy pending/open states use their safe inferred time.
+        new_candle_indexes = list(
+            range(
+                previous_candle_count,
+                len(candles),
+            )
+        )
+    else:
+        new_candle_indexes = [
+            index
+            for index, candle in enumerate(
+                candles
+            )
+            if (
+                candle.timestamp
+                .astimezone(UTC)
+                > checkpoint
+            )
+        ]
+
+    new_candles = [
+        candles[index]
+        for index in new_candle_indexes
     ]
 
     events: list[dict] = []
     fill_results: list[dict] = []
     lifecycle_results: list[dict] = []
 
-    for absolute_index, candle in enumerate(
-        new_candles,
-        start=previous_candle_count,
+    for absolute_index in (
+        new_candle_indexes
     ):
+        candle = candles[
+            absolute_index
+        ]
+
         available_candles = candles[
             : absolute_index + 1
         ]
@@ -150,62 +300,70 @@ def process_new_market_candles(
                     }
                 )
 
-        if market not in updated_state[
+        if market in updated_state[
             "open_positions"
         ]:
-            continue
+            updated_state, lifecycle_result = (
+                evaluate_open_position(
+                    updated_state,
+                    market=market,
+                    candle=candle,
+                )
+            )
 
-        updated_state, lifecycle_result = (
-            evaluate_open_position(
+            lifecycle_results.append(
+                lifecycle_result
+            )
+
+            status = lifecycle_result[
+                "status"
+            ]
+
+            if status == "OPEN":
+                events.append(
+                    {
+                        "event_type": (
+                            "PAPER_POSITION_MARKED"
+                        ),
+                        "market": market,
+                        "candle_timestamp": (
+                            lifecycle_result[
+                                "candle_timestamp"
+                            ]
+                        ),
+                        "payload": (
+                            lifecycle_result
+                        ),
+                    }
+                )
+
+            elif status == "CLOSED":
+                events.append(
+                    {
+                        "event_type": (
+                            "PAPER_POSITION_CLOSED"
+                        ),
+                        "market": market,
+                        "candle_timestamp": (
+                            lifecycle_result[
+                                "exit_timestamp"
+                            ]
+                        ),
+                        "payload": (
+                            lifecycle_result
+                        ),
+                    }
+                )
+
+        updated_state = (
+            mark_candle_processed(
                 updated_state,
                 market=market,
-                candle=candle,
+                candle_timestamp=(
+                    candle.timestamp
+                ),
             )
         )
-
-        lifecycle_results.append(
-            lifecycle_result
-        )
-
-        status = lifecycle_result[
-            "status"
-        ]
-
-        if status == "OPEN":
-            events.append(
-                {
-                    "event_type": (
-                        "PAPER_POSITION_MARKED"
-                    ),
-                    "market": market,
-                    "candle_timestamp": (
-                        lifecycle_result[
-                            "candle_timestamp"
-                        ]
-                    ),
-                    "payload": (
-                        lifecycle_result
-                    ),
-                }
-            )
-
-        elif status == "CLOSED":
-            events.append(
-                {
-                    "event_type": (
-                        "PAPER_POSITION_CLOSED"
-                    ),
-                    "market": market,
-                    "candle_timestamp": (
-                        lifecycle_result[
-                            "exit_timestamp"
-                        ]
-                    ),
-                    "payload": (
-                        lifecycle_result
-                    ),
-                }
-            )
 
     verify_runtime_state(
         updated_state
@@ -221,6 +379,14 @@ def process_new_market_candles(
         ),
         "new_candles_processed": len(
             new_candles
+        ),
+        "checkpoint_before": (
+            checkpoint_text
+        ),
+        "checkpoint_after": (
+            updated_state[
+                "processed_candle_timestamps"
+            ].get(market)
         ),
         "fill_results": fill_results,
         "lifecycle_results": (

@@ -37,6 +37,7 @@ def empty_runtime_state() -> dict:
         "shadow_peak_equity": 10000.0,
         "pending_entries": {},
         "open_positions": {},
+        "processed_candle_timestamps": {},
         "last_completed_session_date": None,
         "last_updated_at_utc": None,
         "broker_orders_sent": 0,
@@ -51,6 +52,19 @@ def verify_runtime_state(
             "Runtime state must be a dictionary."
         )
 
+    state = deepcopy(
+        state
+    )
+
+    # Runtime-state version 1.0 files created before processed
+    # candle checkpoints remain readable. The missing field is
+    # normalised to an empty mapping and written on the next
+    # successful state commit.
+    state.setdefault(
+        "processed_candle_timestamps",
+        {},
+    )
+
     required_fields = {
         "state_version",
         "candidate_balance",
@@ -59,6 +73,7 @@ def verify_runtime_state(
         "shadow_peak_equity",
         "pending_entries",
         "open_positions",
+        "processed_candle_timestamps",
         "last_completed_session_date",
         "last_updated_at_utc",
         "broker_orders_sent",
@@ -118,6 +133,69 @@ def verify_runtime_state(
         raise RuntimeStateError(
             "open_positions must be a dictionary."
         )
+
+    processed = state[
+        "processed_candle_timestamps"
+    ]
+
+    if not isinstance(
+        processed,
+        dict,
+    ):
+        raise RuntimeStateError(
+            "processed_candle_timestamps must be "
+            "a dictionary."
+        )
+
+    for market, timestamp in (
+        processed.items()
+    ):
+        if (
+            not isinstance(market, str)
+            or not market.strip()
+        ):
+            raise RuntimeStateError(
+                "Processed-candle market keys must "
+                "be non-empty strings."
+            )
+
+        if not isinstance(
+            timestamp,
+            str,
+        ):
+            raise RuntimeStateError(
+                "Processed-candle timestamps must "
+                "be strings."
+            )
+
+        try:
+            parsed_timestamp = (
+                datetime.fromisoformat(
+                    timestamp.replace(
+                        "Z",
+                        "+00:00",
+                    )
+                )
+            )
+        except ValueError as error:
+            raise RuntimeStateError(
+                "Processed-candle timestamp is not "
+                "valid ISO-8601."
+            ) from error
+
+        if parsed_timestamp.tzinfo is None:
+            raise RuntimeStateError(
+                "Processed-candle timestamp must "
+                "be timezone-aware."
+            )
+
+        if utc_isoformat(
+            parsed_timestamp
+        ) != timestamp:
+            raise RuntimeStateError(
+                "Processed-candle timestamp must use "
+                "canonical UTC format."
+            )
 
     if state["broker_orders_sent"] != 0:
         raise RuntimeStateError(
@@ -472,3 +550,73 @@ def mark_state_updated(
     )
 
     return updated
+
+
+def mark_candle_processed(
+    state: dict,
+    *,
+    market: str,
+    candle_timestamp: datetime,
+) -> dict:
+    """
+    Record the latest durably processed candle for one market.
+
+    Checkpoints may only move forwards. Repeating the same
+    timestamp is idempotent.
+    """
+    updated = deepcopy(
+        verify_runtime_state(
+            state
+        )
+    )
+
+    if (
+        not isinstance(market, str)
+        or not market.strip()
+    ):
+        raise RuntimeStateError(
+            "Processed-candle market must be a "
+            "non-empty string."
+        )
+
+    canonical_timestamp = (
+        utc_isoformat(
+            candle_timestamp
+        )
+    )
+
+    existing = updated[
+        "processed_candle_timestamps"
+    ].get(market)
+
+    if existing is not None:
+        existing_datetime = (
+            datetime.fromisoformat(
+                existing.replace(
+                    "Z",
+                    "+00:00",
+                )
+            )
+        )
+
+        if (
+            candle_timestamp
+            .astimezone(UTC)
+            < existing_datetime
+            .astimezone(UTC)
+        ):
+            raise RuntimeStateError(
+                "Processed-candle checkpoint cannot "
+                "move backwards."
+            )
+
+        if existing == canonical_timestamp:
+            return updated
+
+    updated[
+        "processed_candle_timestamps"
+    ][market] = canonical_timestamp
+
+    return verify_runtime_state(
+        updated
+    )

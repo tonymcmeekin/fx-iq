@@ -435,9 +435,11 @@ def test_persisted_transition_updates_state_once(
         "candles_added"
     ] == 2
 
+    # The signal candle is already represented by the pending
+    # entry, so only the following entry candle is unprocessed.
     assert result[
         "new_candles_processed"
-    ] == 2
+    ] == 1
 
     assert result[
         "positions_opened"
@@ -604,3 +606,184 @@ def test_market_order_must_match():
                 POLICY_FINGERPRINT
             ),
         )
+
+
+def test_persisted_candles_are_reprocessed_after_prejournal_crash(
+    tmp_path,
+):
+    """
+    Simulate this failure sequence:
+
+    1. Candles are atomically persisted.
+    2. The process crashes before a transition journal/state commit.
+    3. The next run sees zero newly added CSV rows.
+    4. The pending signal timestamp still identifies the unprocessed
+       entry candle, so the transition is correctly replayed.
+    """
+    from app.paper_trading.candle_store import (
+        persist_prospective_candles,
+    )
+    from app.paper_trading.runtime_state import (
+        write_runtime_state,
+    )
+
+    state_path = (
+        tmp_path
+        / "paper_ledger"
+        / "state.json"
+    )
+
+    candle_directory = (
+        tmp_path / "prospective"
+    )
+
+    store_path = (
+        candle_directory
+        / f"{MARKET}.csv"
+    )
+
+    candles = [
+        candle(
+            SIGNAL_TIMESTAMP,
+        ),
+        candle(
+            ENTRY_TIMESTAMP,
+            open_price=1.0,
+            high=1.02,
+            low=0.99,
+            close=1.01,
+        ),
+    ]
+
+    write_runtime_state(
+        state_path,
+        pending_state(),
+    )
+
+    persist_prospective_candles(
+        store_path,
+        candles,
+        expected_symbol=MARKET,
+        first_eligible_market_date=(
+            FIRST_ELIGIBLE_DATE
+        ),
+    )
+
+    result = (
+        run_persisted_daily_transition(
+            state_path=state_path,
+            candle_store_directory=(
+                candle_directory
+            ),
+            market_candles={
+                MARKET: candles,
+            },
+            markets=[MARKET],
+            first_eligible_market_date=(
+                FIRST_ELIGIBLE_DATE
+            ),
+            policy_fingerprint=(
+                POLICY_FINGERPRINT
+            ),
+        )
+    )
+
+    state = read_runtime_state(
+        state_path
+    )
+
+    assert result[
+        "candles_added"
+    ] == 0
+
+    assert result[
+        "new_candles_processed"
+    ] == 1
+
+    assert result[
+        "positions_opened"
+    ] == 1
+
+    assert MARKET in state[
+        "open_positions"
+    ]
+
+    assert state[
+        "processed_candle_timestamps"
+    ][MARKET] == (
+        "2026-07-15T21:00:00Z"
+    )
+
+
+def test_timestamp_checkpoint_overrides_stale_count(
+    tmp_path,
+):
+    from app.paper_trading.runtime_state import (
+        mark_candle_processed,
+        write_runtime_state,
+    )
+
+    state_path = (
+        tmp_path
+        / "paper_ledger"
+        / "state.json"
+    )
+
+    candle_directory = (
+        tmp_path / "prospective"
+    )
+
+    checkpointed = (
+        mark_candle_processed(
+            pending_state(),
+            market=MARKET,
+            candle_timestamp=(
+                SIGNAL_TIMESTAMP
+            ),
+        )
+    )
+
+    write_runtime_state(
+        state_path,
+        checkpointed,
+    )
+
+    candles = [
+        candle(
+            SIGNAL_TIMESTAMP,
+        ),
+        candle(
+            ENTRY_TIMESTAMP,
+            open_price=1.0,
+            high=1.02,
+            low=0.99,
+            close=1.01,
+        ),
+    ]
+
+    result = (
+        run_persisted_daily_transition(
+            state_path=state_path,
+            candle_store_directory=(
+                candle_directory
+            ),
+            market_candles={
+                MARKET: candles,
+            },
+            markets=[MARKET],
+            first_eligible_market_date=(
+                FIRST_ELIGIBLE_DATE
+            ),
+            policy_fingerprint=(
+                POLICY_FINGERPRINT
+            ),
+        )
+    )
+
+    assert result[
+        "new_candles_processed"
+    ] == 1
+
+    assert result[
+        "positions_opened"
+    ] == 1

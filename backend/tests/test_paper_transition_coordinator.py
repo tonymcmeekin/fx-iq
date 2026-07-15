@@ -964,3 +964,81 @@ def test_state_committed_recovery_appends_completion(
     assert not selected_paths[
         "journal_path"
     ].exists()
+
+
+def test_prepare_recovers_candles_persisted_before_journal(
+    tmp_path,
+):
+    from app.paper_trading.candle_store import (
+        persist_prospective_candles,
+    )
+
+    selected_paths = paths(
+        tmp_path
+    )
+
+    state_before = pending_state()
+
+    write_runtime_state(
+        selected_paths[
+            "state_path"
+        ],
+        state_before,
+    )
+
+    arguments = transition_arguments(
+        tmp_path
+    )
+
+    store_path = (
+        selected_paths[
+            "candle_store_directory"
+        ]
+        / f"{MARKET}.csv"
+    )
+
+    persist_prospective_candles(
+        store_path,
+        arguments[
+            "market_candles"
+        ][MARKET],
+        expected_symbol=MARKET,
+        first_eligible_market_date=(
+            FIRST_ELIGIBLE_DATE
+        ),
+    )
+
+    result = prepare_transition(
+        **arguments
+    )
+
+    journal = read_transition_journal(
+        selected_paths[
+            "journal_path"
+        ]
+    )
+
+    assert result[
+        "candles_added"
+    ] == 0
+
+    assert result[
+        "positions_opened"
+    ] == 1
+
+    assert journal[
+        "target_state"
+    ][
+        "processed_candle_timestamps"
+    ][MARKET] == (
+        "2026-07-15T21:00:00Z"
+    )
+
+    assert (
+        read_runtime_state(
+            selected_paths[
+                "state_path"
+            ]
+        )
+        == state_before
+    )

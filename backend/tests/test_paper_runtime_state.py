@@ -257,3 +257,115 @@ def test_state_file_contains_no_token(
             encoding="utf-8"
         )
     )
+
+
+def test_legacy_state_without_checkpoint_is_normalised(
+    tmp_path,
+):
+    state_path = (
+        tmp_path / "state.json"
+    )
+
+    legacy = empty_runtime_state()
+    legacy.pop(
+        "processed_candle_timestamps"
+    )
+
+    state_path.write_text(
+        json.dumps(
+            legacy
+        ),
+        encoding="utf-8",
+    )
+
+    state = read_runtime_state(
+        state_path
+    )
+
+    assert state[
+        "processed_candle_timestamps"
+    ] == {}
+
+
+def test_processed_candle_checkpoint_is_monotonic():
+    from app.paper_trading.runtime_state import (
+        mark_candle_processed,
+    )
+
+    first_timestamp = datetime(
+        2026,
+        7,
+        14,
+        21,
+        0,
+        tzinfo=UTC,
+    )
+
+    second_timestamp = datetime(
+        2026,
+        7,
+        15,
+        21,
+        0,
+        tzinfo=UTC,
+    )
+
+    first = mark_candle_processed(
+        empty_runtime_state(),
+        market="EUR_GBP",
+        candle_timestamp=(
+            first_timestamp
+        ),
+    )
+
+    repeated = mark_candle_processed(
+        first,
+        market="EUR_GBP",
+        candle_timestamp=(
+            first_timestamp
+        ),
+    )
+
+    second = mark_candle_processed(
+        repeated,
+        market="EUR_GBP",
+        candle_timestamp=(
+            second_timestamp
+        ),
+    )
+
+    assert repeated == first
+
+    assert second[
+        "processed_candle_timestamps"
+    ]["EUR_GBP"] == (
+        "2026-07-15T21:00:00Z"
+    )
+
+    with pytest.raises(
+        RuntimeStateError,
+        match="cannot move backwards",
+    ):
+        mark_candle_processed(
+            second,
+            market="EUR_GBP",
+            candle_timestamp=(
+                first_timestamp
+            ),
+        )
+
+
+def test_invalid_processed_checkpoint_is_rejected():
+    state = empty_runtime_state()
+
+    state[
+        "processed_candle_timestamps"
+    ]["EUR_GBP"] = "not-a-time"
+
+    with pytest.raises(
+        RuntimeStateError,
+        match="valid ISO-8601",
+    ):
+        verify_runtime_state(
+            state
+        )
