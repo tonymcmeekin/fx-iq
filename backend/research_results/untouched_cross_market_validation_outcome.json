@@ -1,0 +1,45 @@
+{
+  "validation_name": "Trade IQ Frozen Untouched Cross-Market Validation",
+  "protocol_commit": "acfadc4",
+  "runner_commit": "5d6b514",
+  "results_file": "research_results/untouched_cross_market_validation_results.json",
+  "results_sha256": "50964f9e746310442db6447984e8d18741231620b39c3add3e3720d412aa53b9",
+  "execution_status": "COMPLETED_ONCE",
+  "primary_candidate": {
+    "policy": "frozen_close_location_soft_risk",
+    "status": "PASSED",
+    "fixed_aggregate_return_percent": 1.78,
+    "candidate_aggregate_return_percent": 7.41,
+    "improvement_percentage_points": 5.63,
+    "markets_beating_fixed": 5,
+    "markets_total": 6,
+    "folds_beating_fixed": 4,
+    "folds_total": 6,
+    "markets_lowering_worst_drawdown": 6,
+    "profitable_markets": 3,
+    "trades_retained": 634,
+    "trades_receiving_reduced_risk": 231,
+    "trade_count_identical": true,
+    "trade_sequence_identical": true
+  },
+  "secondary_candidate": {
+    "policy": "frozen_conjunction_soft_risk",
+    "status": "FAILED",
+    "failure_reason": "Lowered worst drawdown in only 2 of 6 markets; preregistered requirement was at least 3."
+  },
+  "exploratory_comparator": {
+    "policy": "frozen_selective_regime_soft_risk",
+    "status": "NO_VALIDATION_CLAIM",
+    "candidate_aggregate_return_percent": -3.76,
+    "improvement_percentage_points": -5.54
+  },
+  "research_conclusion": "The frozen close-location soft-risk policy passed preregistered untouched cross-market validation. This validates the risk-sizing overlay relative to fixed risk but does not establish readiness for live trading.",
+  "restrictions": [
+    "Do not rerun the one-time validation.",
+    "Do not edit the frozen result file.",
+    "Do not retune the threshold or risk multiplier using these six validation markets.",
+    "Do not use the failed conjunction or selective-regime policies as validated components.",
+    "A successful validation permits prospective paper testing, not immediate live-money deployment."
+  ],
+  "next_research_stage": "prospective_paper_trading"
+}
