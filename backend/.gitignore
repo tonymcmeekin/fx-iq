@@ -27,3 +27,5 @@ nested_conjunction_risk_results.txt
 
 data/untouched_validation/*.csv
 data/untouched_validation/*.csv.sha256
+
+untouched_cross_market_validation_console.txt
