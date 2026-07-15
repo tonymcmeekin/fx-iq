@@ -13,3 +13,5 @@ external_holdout_console_results.txt
 regime_risk_walk_forward_results.txt
 
 trade_regime_expectancy_results.txt
+
+regime_direction_robustness_results.txt
