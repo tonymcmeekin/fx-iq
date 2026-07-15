@@ -126,3 +126,45 @@ def calculate_regime_risk(
         ),
         reasons=reasons,
     )
+
+
+def calculate_historical_regime_risk_percent(
+    base_risk_percent: float,
+    candles,
+    lookback: int = 50,
+) -> float:
+    """
+    Calculate risk using only the historical candles supplied.
+
+    When insufficient history exists, retain the configured base
+    risk rather than rejecting an otherwise valid trade.
+    """
+    if len(candles) < lookback:
+        return base_risk_percent
+
+    from app.ai.regime import detect_market_regime
+
+    regime = detect_market_regime(
+        candles=candles,
+        lookback=lookback,
+    )
+
+    decision = calculate_regime_risk(
+        base_risk_percent=base_risk_percent,
+        regime=regime,
+    )
+
+    return decision.adjusted_risk_percent
+
+
+def regime_risk_adjuster(
+    config,
+    historical_candles,
+) -> float:
+    """
+    Portfolio-engine adapter for deterministic regime risk sizing.
+    """
+    return calculate_historical_regime_risk_percent(
+        base_risk_percent=config.risk_per_trade_percent,
+        candles=historical_candles,
+    )

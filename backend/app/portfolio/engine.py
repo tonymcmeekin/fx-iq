@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -300,6 +301,11 @@ def run_portfolio_backtest(
     max_portfolio_leverage: float = 20.0,
     max_total_risk_percent: float = 1.0,
     trading_start_timestamp: datetime | None = None,
+    risk_percent_adjuster: Callable[
+        [PortfolioStrategyConfig, list[Candle]],
+        float,
+    ]
+    | None = None,
 ) -> PortfolioBacktestResult:
     _validate_inputs(
         candles_by_symbol=candles_by_symbol,
@@ -405,9 +411,44 @@ def run_portfolio_backtest(
                 entry_price - stop_loss
             )
 
+            adjusted_risk_percent = (
+                config.risk_per_trade_percent
+            )
+
+            if risk_percent_adjuster is not None:
+                # The current candle has already been appended to
+                # history, but the position enters at this candle's
+                # open. Exclude it so the risk decision uses only
+                # information known at the preceding close.
+                pre_entry_history = histories[
+                    config.symbol
+                ][:-1]
+
+                adjusted_risk_percent = (
+                    risk_percent_adjuster(
+                        config,
+                        pre_entry_history,
+                    )
+                )
+
+                if adjusted_risk_percent <= 0:
+                    raise ValueError(
+                        "Adjusted risk percent must be "
+                        "greater than zero."
+                    )
+
+                if (
+                    adjusted_risk_percent
+                    > config.risk_per_trade_percent
+                ):
+                    raise ValueError(
+                        "Adjusted risk percent cannot exceed "
+                        "the configured risk per trade."
+                    )
+
             desired_risk = (
                 balance
-                * config.risk_per_trade_percent
+                * adjusted_risk_percent
                 / 100
             )
 
