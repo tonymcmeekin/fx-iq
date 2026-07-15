@@ -1,0 +1,130 @@
+{
+  "protocol_name": "Trade IQ Frozen Untouched Cross-Market Validation",
+  "protocol_version": "1.0",
+  "status": "PREREGISTERED_NOT_RUN",
+  "validation_type": "untouched_cross_market",
+  "data_manifest": "research_protocols/untouched_market_data_manifest.json",
+  "development_cutoff": "2024-08-04",
+  "previous_post_2024_holdout_reused": false,
+  "development_markets": [
+    "EUR_USD",
+    "GBP_USD",
+    "AUD_USD",
+    "USD_JPY",
+    "USD_CAD",
+    "NZD_USD"
+  ],
+  "untouched_validation_markets": [
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "CAD_JPY",
+    "AUD_CAD"
+  ],
+  "evaluation_period": {
+    "start": "2013-01-28",
+    "end": "2024-08-04",
+    "reason": "Matches the chronological development period while validating on entirely new markets."
+  },
+  "common_strategy_configuration": {
+    "strategy_name": "atr_breakout",
+    "stop_loss_percent": 1.5,
+    "take_profit_percent": 3.0,
+    "base_risk_per_trade_percent": 0.5,
+    "spread_pips": 1.0,
+    "slippage_pips": 0.5,
+    "initial_balance_per_market": 10000.0,
+    "max_portfolio_leverage": 30.0,
+    "max_total_risk_percent": 0.5
+  },
+  "control_policy": {
+    "name": "fixed_risk",
+    "risk_percent": 0.5
+  },
+  "primary_candidate": {
+    "name": "frozen_close_location_soft_risk",
+    "description": "Reduce risk only when directional close location is at or below the frozen development threshold.",
+    "frozen_directional_close_location_threshold": 0.8174,
+    "normal_risk_percent": 0.5,
+    "reduced_risk_percent": 0.25,
+    "trade_selection_changed": false
+  },
+  "secondary_candidate": {
+    "name": "frozen_conjunction_soft_risk",
+    "description": "Reduce risk only when the frozen close-location condition and a frozen robust-negative regime group both trigger.",
+    "frozen_directional_close_location_threshold": 0.8174,
+    "frozen_regime_groups": [
+      [
+        "RANGING",
+        "NORMAL",
+        "BUY"
+      ],
+      [
+        "TRENDING_UP",
+        "NORMAL",
+        "BUY"
+      ]
+    ],
+    "normal_risk_percent": 0.5,
+    "reduced_risk_percent": 0.25,
+    "trade_selection_changed": false
+  },
+  "exploratory_comparator": {
+    "name": "frozen_selective_regime_soft_risk",
+    "frozen_regime_groups": [
+      [
+        "RANGING",
+        "NORMAL",
+        "BUY"
+      ],
+      [
+        "TRENDING_UP",
+        "NORMAL",
+        "BUY"
+      ]
+    ],
+    "normal_risk_percent": 0.5,
+    "reduced_risk_percent": 0.25,
+    "eligible_for_validation_claim": false,
+    "reason": "The standalone nested regime policy failed development criteria."
+  },
+  "primary_pass_criteria": {
+    "all_required": true,
+    "aggregate_return_improvement_over_fixed_percentage_points_greater_than": 0.0,
+    "markets_beating_fixed_at_least": 4,
+    "markets_total": 6,
+    "chronological_folds_beating_fixed_at_least": 4,
+    "chronological_folds_total": 6,
+    "markets_with_lower_worst_drawdown_at_least": 3,
+    "profitable_candidate_markets_at_least": 3,
+    "trade_count_must_equal_fixed": true,
+    "trade_sequence_must_equal_fixed": true,
+    "candidate_aggregate_return_must_be_positive": true
+  },
+  "secondary_pass_criteria": {
+    "all_required": true,
+    "aggregate_return_improvement_over_fixed_percentage_points_greater_than": 0.0,
+    "markets_beating_fixed_at_least": 4,
+    "markets_total": 6,
+    "chronological_folds_beating_fixed_at_least": 4,
+    "chronological_folds_total": 6,
+    "markets_with_lower_worst_drawdown_at_least": 3,
+    "profitable_candidate_markets_at_least": 3,
+    "trade_count_must_equal_fixed": true,
+    "trade_sequence_must_equal_fixed": true,
+    "candidate_aggregate_return_must_be_positive": true
+  },
+  "decision_rules": [
+    "The primary candidate is evaluated first against all preregistered primary criteria.",
+    "Failure of any required primary criterion means the primary candidate fails validation.",
+    "The secondary candidate is evaluated independently against all secondary criteria.",
+    "The exploratory regime comparator cannot generate a validation claim.",
+    "No threshold, regime group, multiplier, stop loss, take profit, spread or slippage assumption may be changed after results are viewed.",
+    "No market may be removed because of an unfavourable result.",
+    "No additional policy may be created from validation-market results.",
+    "The six validation markets must be reported individually and in aggregate.",
+    "The previously viewed post-2024 development-market holdout must not be reused.",
+    "A successful result permits prospective paper trading, not immediate live-money deployment."
+  ]
+}

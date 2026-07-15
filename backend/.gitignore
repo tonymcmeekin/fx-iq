@@ -24,3 +24,6 @@ nested_close_location_risk_results.txt
 
 nested_risk_policy_overlap_results.txt
 nested_conjunction_risk_results.txt
+
+data/untouched_validation/*.csv
+data/untouched_validation/*.csv.sha256

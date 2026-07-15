@@ -1,0 +1,87 @@
+{
+  "protocol": "Trade IQ untouched cross-market validation",
+  "status": "FROZEN_UNEXAMINED",
+  "created_at_utc": "2026-07-15T19:22:27.029620+00:00",
+  "source": "OANDA practice REST API",
+  "requested_candles": 5000,
+  "strategy_results_viewed": false,
+  "external_post_2024_holdout_reused": false,
+  "development_markets": [
+    "EUR_USD",
+    "GBP_USD",
+    "AUD_USD",
+    "USD_JPY",
+    "USD_CAD",
+    "NZD_USD"
+  ],
+  "validation_markets": [
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "CAD_JPY",
+    "AUD_CAD"
+  ],
+  "datasets": [
+    {
+      "instrument": "EUR_GBP",
+      "file": "data/untouched_validation/oanda_eur_gbp_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-10-05T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "a0cf57d7d10f67bbb675de311b6814ae91e5f45b90cb258e9678794a27263d5f"
+    },
+    {
+      "instrument": "EUR_JPY",
+      "file": "data/untouched_validation/oanda_eur_jpy_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-10-12T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "ce60f9229237f8d4f3e0913cc7cee5d1667925ea44f4c6a877f84c6f34dd3c90"
+    },
+    {
+      "instrument": "GBP_JPY",
+      "file": "data/untouched_validation/oanda_gbp_jpy_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-10-10T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "fdab0e460dd1abb84c6a92a30a022306dd6795a78b9374d546897a2977d9eb2d"
+    },
+    {
+      "instrument": "AUD_JPY",
+      "file": "data/untouched_validation/oanda_aud_jpy_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-10-10T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "be44d99da60aee4665144ea6a626b93519375d7cc7645282e20af2f088dac2f2"
+    },
+    {
+      "instrument": "CAD_JPY",
+      "file": "data/untouched_validation/oanda_cad_jpy_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-10-08T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "056606748e5ff34df07ae45429e2fe816d8ab9ac4e11a3978632a7472242df8d"
+    },
+    {
+      "instrument": "AUD_CAD",
+      "file": "data/untouched_validation/oanda_aud_cad_daily.csv",
+      "rows": 4999,
+      "timeframe": "D",
+      "first_timestamp": "2008-09-19T21:00:00.000000000Z",
+      "last_timestamp": "2026-07-13T21:00:00.000000000Z",
+      "sha256": "fd7604dd5ce5d76faec5d94ae73fefa7250df48af13a934e661e423d42167b2a"
+    }
+  ],
+  "restrictions": [
+    "Do not tune strategy parameters using these datasets.",
+    "Commit validation criteria before running any strategy.",
+    "Run frozen candidate policies once.",
+    "Do not reuse the previously viewed post-2024 holdout."
+  ]
+}
