@@ -35,6 +35,11 @@ from app.paper_trading.transition_ledger import (
 from app.paper_trading.ledger import (
     verify_ledger,
 )
+from app.paper_trading.session import (
+    append_event_once,
+    deterministic_event_id,
+    utc_isoformat,
+)
 
 
 class TransitionCoordinatorError(RuntimeError):
@@ -283,6 +288,8 @@ def prepare_transition(
     first_eligible_market_date: date,
     policy_fingerprint: str,
     occurred_at_utc: datetime,
+    initial_state: dict | None = None,
+    completion_payload: dict | None = None,
 ) -> dict:
     """
     Persist candles and prepare an in-memory state transition.
@@ -325,9 +332,16 @@ def prepare_transition(
         )
     )
 
-    updated_state = deepcopy(
-        original_state
-    )
+    if initial_state is None:
+        updated_state = deepcopy(
+            original_state
+        )
+    else:
+        updated_state = deepcopy(
+            verify_runtime_state(
+                initial_state
+            )
+        )
 
     candle_counts_before: dict[
         str,
@@ -452,6 +466,59 @@ def prepare_transition(
         ),
         candle_counts_after=(
             candle_counts_after
+        ),
+        completion_payload=(
+            {
+                **completion_payload,
+                "positions_opened": sum(
+                    result[
+                        "positions_opened"
+                    ]
+                    for result in (
+                        market_results
+                    )
+                ),
+                "position_marks": sum(
+                    result[
+                        "position_marks"
+                    ]
+                    for result in (
+                        market_results
+                    )
+                ),
+                "positions_closed": sum(
+                    result[
+                        "positions_closed"
+                    ]
+                    for result in (
+                        market_results
+                    )
+                ),
+                "pending_entries": len(
+                    updated_state[
+                        "pending_entries"
+                    ]
+                ),
+                "open_positions": len(
+                    updated_state[
+                        "open_positions"
+                    ]
+                ),
+                "candidate_balance": (
+                    updated_state[
+                        "candidate_balance"
+                    ]
+                ),
+                "shadow_balance": (
+                    updated_state[
+                        "shadow_balance"
+                    ]
+                ),
+                "broker_orders_sent": 0,
+            }
+            if completion_payload
+            is not None
+            else None
         ),
     )
 
@@ -640,6 +707,47 @@ def commit_prepared_transition(
             "transition journal."
         )
 
+    completion_payload = journal[
+        "completion_payload"
+    ]
+
+    if completion_payload is not None:
+        append_event_once(
+            ledger_path,
+            "SESSION_COMPLETED",
+            completion_payload,
+            event_id=(
+                deterministic_event_id(
+                    session_date,
+                    "SESSION_COMPLETED",
+                )
+            ),
+            occurred_at_utc=(
+                utc_isoformat(
+                    occurred_at_utc
+                )
+            ),
+        )
+
+        completed_event_id = (
+            deterministic_event_id(
+                session_date,
+                "SESSION_COMPLETED",
+            )
+        )
+
+        if not any(
+            event["event_id"]
+            == completed_event_id
+            for event in verify_ledger(
+                ledger_path
+            )
+        ):
+            raise TransitionCoordinatorError(
+                "SESSION_COMPLETED could not be "
+                "verified."
+            )
+
     completed_journal = deepcopy(
         journal
     )
@@ -674,6 +782,8 @@ def run_recoverable_transition(
     first_eligible_market_date: date,
     policy_fingerprint: str,
     occurred_at_utc: datetime,
+    initial_state: dict | None = None,
+    completion_payload: dict | None = None,
 ) -> dict:
     """
     Recover an unfinished transition or prepare and commit a new one.
@@ -706,6 +816,12 @@ def run_recoverable_transition(
             ),
             occurred_at_utc=(
                 occurred_at_utc
+            ),
+            initial_state=(
+                initial_state
+            ),
+            completion_payload=(
+                completion_payload
             ),
         )
 

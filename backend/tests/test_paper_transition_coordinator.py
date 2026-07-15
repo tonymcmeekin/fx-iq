@@ -783,3 +783,184 @@ def test_timezone_naive_occurred_at_is_rejected(
                 ),
             }
         )
+
+
+def test_completion_event_is_final_durable_event(
+    tmp_path,
+):
+    selected_paths = paths(
+        tmp_path
+    )
+
+    write_runtime_state(
+        selected_paths[
+            "state_path"
+        ],
+        pending_state(),
+    )
+
+    result = run_recoverable_transition(
+        **transition_arguments(
+            tmp_path
+        ),
+        completion_payload={
+            "session_date": (
+                SESSION_DATE.isoformat()
+            ),
+            "status": "SUCCESS",
+            "markets_processed": 1,
+            "actionable_signals": 1,
+            "pending_entries": 1,
+            "positions_opened": 0,
+            "positions_closed": 0,
+            "broker_orders_sent": 0,
+            "market_summaries": [],
+        },
+    )
+
+    assert result["status"] == (
+        "COMMITTED"
+    )
+
+    events = verify_ledger(
+        selected_paths[
+            "ledger_path"
+        ]
+    )
+
+    assert events[-1][
+        "event_type"
+    ] == "SESSION_COMPLETED"
+
+    assert events[-1][
+        "payload"
+    ]["broker_orders_sent"] == 0
+
+    assert not selected_paths[
+        "journal_path"
+    ].exists()
+
+
+def test_state_committed_recovery_appends_completion(
+    tmp_path,
+):
+    selected_paths = paths(
+        tmp_path
+    )
+
+    write_runtime_state(
+        selected_paths[
+            "state_path"
+        ],
+        pending_state(),
+    )
+
+    prepare_transition(
+        **transition_arguments(
+            tmp_path
+        ),
+        completion_payload={
+            "session_date": (
+                SESSION_DATE.isoformat()
+            ),
+            "status": "SUCCESS",
+            "markets_processed": 1,
+            "actionable_signals": 1,
+            "pending_entries": 1,
+            "positions_opened": 0,
+            "positions_closed": 0,
+            "broker_orders_sent": 0,
+            "market_summaries": [],
+        },
+    )
+
+    journal = read_transition_journal(
+        selected_paths[
+            "journal_path"
+        ]
+    )
+
+    append_transition_events(
+        ledger_path=selected_paths[
+            "ledger_path"
+        ],
+        session_date=SESSION_DATE,
+        transition_events=journal[
+            "transition_events"
+        ],
+        occurred_at_utc=OCCURRED_AT,
+    )
+
+    journal = (
+        advance_transition_journal(
+            journal,
+            next_stage=(
+                LEDGER_APPENDED
+            ),
+        )
+    )
+
+    write_runtime_state(
+        selected_paths[
+            "state_path"
+        ],
+        journal[
+            "target_state"
+        ],
+    )
+
+    journal = (
+        advance_transition_journal(
+            journal,
+            next_stage=(
+                STATE_COMMITTED
+            ),
+        )
+    )
+
+    write_transition_journal(
+        selected_paths[
+            "journal_path"
+        ],
+        journal,
+    )
+
+    assert "SESSION_COMPLETED" not in [
+        event["event_type"]
+        for event in verify_ledger(
+            selected_paths[
+                "ledger_path"
+            ]
+        )
+    ]
+
+    commit_prepared_transition(
+        journal_path=selected_paths[
+            "journal_path"
+        ],
+        ledger_path=selected_paths[
+            "ledger_path"
+        ],
+        state_path=selected_paths[
+            "state_path"
+        ],
+        candle_store_directory=(
+            selected_paths[
+                "candle_store_directory"
+            ]
+        ),
+    )
+
+    events = verify_ledger(
+        selected_paths[
+            "ledger_path"
+        ]
+    )
+
+    assert events[-1][
+        "event_type"
+    ] == "SESSION_COMPLETED"
+
+    assert not selected_paths[
+        "journal_path"
+    ].exists()

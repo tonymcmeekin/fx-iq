@@ -15,10 +15,19 @@ from app.paper_trading.runtime_state import (
     build_pending_entry,
     mark_state_updated,
     read_runtime_state,
-    write_runtime_state,
+    verify_runtime_state,
 )
 from app.paper_trading.session import (
+    directional_close_location,
     run_daily_evaluation,
+    session_is_completed,
+)
+from app.paper_trading.transition_coordinator import (
+    commit_prepared_transition,
+    run_recoverable_transition,
+)
+from app.paper_trading.transition_journal import (
+    read_transition_journal,
 )
 
 
@@ -35,6 +44,14 @@ DEFAULT_STATE_PATH = Path(
     "paper_ledger/state.json"
 )
 
+DEFAULT_JOURNAL_PATH = Path(
+    "paper_ledger/transition.json"
+)
+
+DEFAULT_CANDLE_STORE_DIRECTORY = Path(
+    "data/prospective_paper"
+)
+
 CollectorFunction = Callable[
     ...,
     list[Candle],
@@ -47,6 +64,10 @@ def run_controlled_daily_session(
     session_date: date,
     ledger_path: Path = DEFAULT_LEDGER_PATH,
     state_path: Path = DEFAULT_STATE_PATH,
+    journal_path: Path = DEFAULT_JOURNAL_PATH,
+    candle_store_directory: Path = (
+        DEFAULT_CANDLE_STORE_DIRECTORY
+    ),
     protocol_path: Path = DEFAULT_PROTOCOL_PATH,
     protocol: dict | None = None,
     environment: str = "practice",
@@ -62,10 +83,11 @@ def run_controlled_daily_session(
     software_commit: str = "UNKNOWN",
 ) -> dict:
     """
-    Run one simulation-only prospective paper session.
+    Run one recoverable simulation-only paper session.
 
-    The collector is dependency-injected so tests can operate
-    entirely offline. This function never submits broker orders.
+    Any unfinished journal is recovered before market collection.
+    SESSION_COMPLETED is appended only after transition events and
+    runtime state have become durable.
     """
     if environment != "practice":
         raise RuntimeError(
@@ -128,6 +150,81 @@ def run_controlled_daily_session(
         policy_verifier()
     )
 
+    existing_journal = (
+        read_transition_journal(
+            journal_path
+        )
+    )
+
+    recovered_existing_journal = (
+        existing_journal is not None
+    )
+
+    if existing_journal is not None:
+        journal_policy = existing_journal[
+            "policy_fingerprint"
+        ]
+
+        if journal_policy != (
+            policy_fingerprint
+        ):
+            raise RuntimeError(
+                "Unfinished transition journal uses "
+                "a different policy fingerprint."
+            )
+
+        commit_prepared_transition(
+            journal_path=journal_path,
+            ledger_path=ledger_path,
+            state_path=state_path,
+            candle_store_directory=(
+                candle_store_directory
+            ),
+        )
+
+    if session_is_completed(
+        ledger_path,
+        session_date,
+    ):
+        state = read_runtime_state(
+            state_path
+        )
+
+        return {
+            "status": "ALREADY_COMPLETED",
+            "session_date": (
+                session_date.isoformat()
+            ),
+            "policy_fingerprint": (
+                policy_fingerprint
+            ),
+            "runtime_state_updated": False,
+            "recovered_existing_journal": (
+                recovered_existing_journal
+            ),
+            "pending_entries_total": len(
+                state[
+                    "pending_entries"
+                ]
+            ),
+            "open_positions_total": len(
+                state[
+                    "open_positions"
+                ]
+            ),
+            "candidate_balance": (
+                state[
+                    "candidate_balance"
+                ]
+            ),
+            "shadow_balance": (
+                state[
+                    "shadow_balance"
+                ]
+            ),
+            "broker_orders_sent": 0,
+        }
+
     state = read_runtime_state(
         state_path
     )
@@ -142,9 +239,11 @@ def run_controlled_daily_session(
         list[Candle],
     ] = {}
 
-    for market in resolved_protocol[
+    markets = resolved_protocol[
         "markets"
-    ]:
+    ]
+
+    for market in markets:
         candles = collector(
             api_token=api_token,
             instrument=market,
@@ -162,37 +261,35 @@ def run_controlled_daily_session(
             market
         ] = candles
 
-    session_result = (
-        run_daily_evaluation(
-            ledger_path=ledger_path,
-            session_date=session_date,
-            market_candles=market_candles,
-            protocol=resolved_protocol,
-            policy_verifier=(
-                lambda: policy_fingerprint
-            ),
-            session_time_utc=(
-                resolved_session_time
-            ),
-            software_commit=(
-                software_commit
-            ),
-        )
+    evaluation = run_daily_evaluation(
+        ledger_path=ledger_path,
+        session_date=session_date,
+        market_candles=market_candles,
+        protocol=resolved_protocol,
+        policy_verifier=(
+            lambda: policy_fingerprint
+        ),
+        session_time_utc=(
+            resolved_session_time
+        ),
+        software_commit=(
+            software_commit
+        ),
+        append_completion_event=False,
     )
 
-    if session_result["status"] == (
-        "ALREADY_COMPLETED"
+    if evaluation["status"] != (
+        "EVALUATED"
     ):
-        return {
-            **session_result,
-            "runtime_state_updated": False,
-            "broker_orders_sent": 0,
-        }
+        raise RuntimeError(
+            "Session evaluation did not reach "
+            "the expected pre-commit state."
+        )
 
-    updated_state = state
+    staged_state = state
 
     for market_summary in (
-        session_result["markets"]
+        evaluation["markets"]
     ):
         if not market_summary[
             "pending_entry"
@@ -231,40 +328,11 @@ def run_controlled_daily_session(
                     ]
                 ),
                 directional_close_location=(
-                    (
-                        latest_candle.close
-                        - latest_candle.low
-                    )
-                    / (
-                        latest_candle.high
-                        - latest_candle.low
-                    )
-                    if (
+                    directional_close_location(
+                        latest_candle,
                         market_summary[
                             "direction"
-                        ]
-                        == "BUY"
-                        and latest_candle.high
-                        != latest_candle.low
-                    )
-                    else (
-                        (
-                            latest_candle.high
-                            - latest_candle.close
-                        )
-                        / (
-                            latest_candle.high
-                            - latest_candle.low
-                        )
-                        if (
-                            market_summary[
-                                "direction"
-                            ]
-                            == "SELL"
-                            and latest_candle.high
-                            != latest_candle.low
-                        )
-                        else 0.5
+                        ],
                     )
                 ),
                 policy_fingerprint=(
@@ -276,56 +344,113 @@ def run_controlled_daily_session(
             )
         )
 
-        updated_state = (
-            add_pending_entry(
-                updated_state,
-                pending_entry,
-            )
+        staged_state = add_pending_entry(
+            staged_state,
+            pending_entry,
         )
 
-    updated_state = (
-        mark_state_updated(
-            updated_state,
-            updated_at_utc=(
+    staged_state = mark_state_updated(
+        staged_state,
+        updated_at_utc=(
+            resolved_session_time
+        ),
+        completed_session_date=(
+            session_date.isoformat()
+        ),
+    )
+
+    verify_runtime_state(
+        staged_state
+    )
+
+    first_eligible_market_date = (
+        date.fromisoformat(
+            resolved_protocol[
+                "prospective_period"
+            ][
+                "first_eligible_market_date"
+            ]
+        )
+    )
+
+    transition = (
+        run_recoverable_transition(
+            journal_path=journal_path,
+            ledger_path=ledger_path,
+            state_path=state_path,
+            candle_store_directory=(
+                candle_store_directory
+            ),
+            session_date=session_date,
+            market_candles=market_candles,
+            markets=markets,
+            first_eligible_market_date=(
+                first_eligible_market_date
+            ),
+            policy_fingerprint=(
+                policy_fingerprint
+            ),
+            occurred_at_utc=(
                 resolved_session_time
             ),
-            completed_session_date=(
-                session_date.isoformat()
+            initial_state=(
+                staged_state
+            ),
+            completion_payload=(
+                evaluation[
+                    "completion_payload"
+                ]
             ),
         )
     )
 
-    write_runtime_state(
-        state_path,
-        updated_state,
+    committed_state = (
+        read_runtime_state(
+            state_path
+        )
     )
 
+    if not session_is_completed(
+        ledger_path,
+        session_date,
+    ):
+        raise RuntimeError(
+            "Controlled session did not append its "
+            "final completion event."
+        )
+
     return {
-        **session_result,
-        "runtime_state_updated": True,
+        **evaluation,
+        **transition,
+        "status": "COMPLETED",
+        "runtime_state_updated": (
+            committed_state != state
+        ),
+        "recovered_existing_journal": (
+            recovered_existing_journal
+            or transition[
+                "recovered_existing_journal"
+            ]
+        ),
         "pending_entries_total": len(
-            updated_state[
+            committed_state[
                 "pending_entries"
             ]
         ),
         "open_positions_total": len(
-            updated_state[
+            committed_state[
                 "open_positions"
             ]
         ),
         "candidate_balance": (
-            updated_state[
+            committed_state[
                 "candidate_balance"
             ]
         ),
         "shadow_balance": (
-            updated_state[
+            committed_state[
                 "shadow_balance"
             ]
         ),
-        "broker_orders_sent": (
-            updated_state[
-                "broker_orders_sent"
-            ]
-        ),
+        "broker_orders_sent": 0,
     }

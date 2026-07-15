@@ -105,6 +105,7 @@ def build_transition_journal(
     target_state: dict,
     candle_counts_before: dict[str, int],
     candle_counts_after: dict[str, int],
+    completion_payload: dict | None = None,
 ) -> dict:
     if not policy_fingerprint.strip():
         raise TransitionJournalError(
@@ -122,6 +123,17 @@ def build_transition_journal(
         )
         for event in transition_events
     ]
+
+    if (
+        completion_payload is not None
+        and not isinstance(
+            completion_payload,
+            dict,
+        )
+    ):
+        raise TransitionJournalError(
+            "Completion payload must be a dictionary."
+        )
 
     verified_state = deepcopy(
         verify_runtime_state(
@@ -215,6 +227,14 @@ def build_transition_journal(
                 candle_counts_after
             )
         ),
+        "completion_payload": (
+            deepcopy(
+                completion_payload
+            )
+            if completion_payload
+            is not None
+            else None
+        ),
         "broker_orders_submitted": 0,
     }
 
@@ -246,6 +266,7 @@ def verify_transition_journal(
         "target_state",
         "candle_counts_before",
         "candle_counts_after",
+        "completion_payload",
         "broker_orders_submitted",
         "checksum",
     }
@@ -339,6 +360,22 @@ def verify_transition_journal(
         )
     )
 
+    completion_payload = journal[
+        "completion_payload"
+    ]
+
+    if (
+        completion_payload is not None
+        and not isinstance(
+            completion_payload,
+            dict,
+        )
+    ):
+        raise TransitionJournalError(
+            "Journal completion payload must be "
+            "a dictionary."
+        )
+
     before = journal[
         "candle_counts_before"
     ]
@@ -425,6 +462,14 @@ def verify_transition_journal(
         ),
         "target_state": (
             verified_state
+        ),
+        "completion_payload": (
+            deepcopy(
+                completion_payload
+            )
+            if completion_payload
+            is not None
+            else None
         ),
     }
 

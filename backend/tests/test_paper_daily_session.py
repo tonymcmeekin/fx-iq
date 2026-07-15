@@ -15,6 +15,7 @@ from app.paper_trading.session import (
     deterministic_event_id,
     directional_close_location,
     run_daily_evaluation,
+    session_is_completed,
     utc_isoformat,
 )
 
@@ -512,3 +513,50 @@ def test_no_runtime_paths_are_used(
     assert not (
         tmp_path / "paper_ledger"
     ).exists()
+
+
+def test_evaluation_only_does_not_complete_session(
+    tmp_path,
+):
+    ledger_path = (
+        tmp_path / "events.jsonl"
+    )
+
+    result = run_daily_evaluation(
+        ledger_path=ledger_path,
+        session_date=SESSION_DATE,
+        market_candles={
+            "EUR_GBP": make_candles(),
+        },
+        protocol=make_protocol(),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+        append_completion_event=False,
+    )
+
+    assert result["status"] == (
+        "EVALUATED"
+    )
+
+    assert result[
+        "completion_event_appended"
+    ] is False
+
+    assert result[
+        "completion_payload"
+    ]["status"] == "SUCCESS"
+
+    assert "SESSION_COMPLETED" not in [
+        event["event_type"]
+        for event in verify_ledger(
+            ledger_path
+        )
+    ]
+
+    assert session_is_completed(
+        ledger_path,
+        SESSION_DATE,
+    ) is False

@@ -153,6 +153,12 @@ def test_orchestrator_collects_frozen_markets_in_order(
         state_path=(
             tmp_path / "state.json"
         ),
+        journal_path=(
+            tmp_path / "transition.json"
+        ),
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
         protocol=make_protocol(
             [
                 "EUR_GBP",
@@ -209,6 +215,12 @@ def test_actionable_signal_becomes_pending_entry(
         session_date=SESSION_DATE,
         ledger_path=ledger_path,
         state_path=state_path,
+        journal_path=(
+            tmp_path / "transition.json"
+        ),
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
         protocol=make_protocol(),
         collector=(
             lambda **kwargs: make_candles(
@@ -274,6 +286,12 @@ def test_hold_signal_does_not_create_pending_entry(
             tmp_path / "events.jsonl"
         ),
         state_path=state_path,
+        journal_path=(
+            tmp_path / "transition.json"
+        ),
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
         protocol=make_protocol(),
         collector=(
             lambda **kwargs: make_candles(
@@ -312,6 +330,12 @@ def test_completed_session_is_idempotent(
         "session_date": SESSION_DATE,
         "ledger_path": ledger_path,
         "state_path": state_path,
+        "journal_path": (
+            tmp_path / "transition.json"
+        ),
+        "candle_store_directory": (
+            tmp_path / "candles"
+        ),
         "protocol": make_protocol(),
         "collector": (
             lambda **kwargs: make_candles(
@@ -400,6 +424,14 @@ def test_live_environment_is_rejected_before_collection(
                 tmp_path
                 / "state.json"
             ),
+            journal_path=(
+                tmp_path
+                / "transition.json"
+            ),
+            candle_store_directory=(
+                tmp_path
+                / "candles"
+            ),
             protocol=make_protocol(),
             environment="live",
             collector=fake_collector,
@@ -434,6 +466,12 @@ def test_token_is_not_written_to_runtime_files(
         session_date=SESSION_DATE,
         ledger_path=ledger_path,
         state_path=state_path,
+        journal_path=(
+            tmp_path / "transition.json"
+        ),
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
         protocol=make_protocol(),
         collector=(
             lambda **kwargs: make_candles(
@@ -477,3 +515,127 @@ def test_missing_token_is_rejected():
                 SESSION_TIME
             ),
         )
+
+
+def test_completion_is_last_after_state_commit(
+    tmp_path,
+):
+    ledger_path = (
+        tmp_path / "events.jsonl"
+    )
+
+    state_path = (
+        tmp_path / "state.json"
+    )
+
+    journal_path = (
+        tmp_path / "transition.json"
+    )
+
+    result = run_controlled_daily_session(
+        api_token="test-token",
+        session_date=SESSION_DATE,
+        ledger_path=ledger_path,
+        state_path=state_path,
+        journal_path=journal_path,
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
+        protocol=make_protocol(),
+        collector=(
+            lambda **kwargs: make_candles(
+                kwargs["instrument"],
+                breakout=True,
+            )
+        ),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+    )
+
+    assert result["status"] == (
+        "COMPLETED"
+    )
+
+    events = verify_ledger(
+        ledger_path
+    )
+
+    assert events[-1][
+        "event_type"
+    ] == "SESSION_COMPLETED"
+
+    assert state_path.exists()
+    assert not journal_path.exists()
+
+    state = read_runtime_state(
+        state_path
+    )
+
+    assert state[
+        "last_completed_session_date"
+    ] == SESSION_DATE.isoformat()
+
+    assert state[
+        "broker_orders_sent"
+    ] == 0
+
+
+def test_completed_session_skips_collection(
+    tmp_path,
+):
+    calls = 0
+
+    def collector(**kwargs):
+        nonlocal calls
+        calls += 1
+
+        return make_candles(
+            kwargs["instrument"],
+            breakout=False,
+        )
+
+    arguments = {
+        "api_token": "test-token",
+        "session_date": SESSION_DATE,
+        "ledger_path": (
+            tmp_path / "events.jsonl"
+        ),
+        "state_path": (
+            tmp_path / "state.json"
+        ),
+        "journal_path": (
+            tmp_path / "transition.json"
+        ),
+        "candle_store_directory": (
+            tmp_path / "candles"
+        ),
+        "protocol": make_protocol(),
+        "collector": collector,
+        "policy_verifier": (
+            lambda: POLICY_FINGERPRINT
+        ),
+        "session_time_utc": (
+            SESSION_TIME
+        ),
+    }
+
+    first = run_controlled_daily_session(
+        **arguments
+    )
+
+    second = run_controlled_daily_session(
+        **arguments
+    )
+
+    assert first["status"] == (
+        "COMPLETED"
+    )
+
+    assert second["status"] == (
+        "ALREADY_COMPLETED"
+    )
+
+    assert calls == 1

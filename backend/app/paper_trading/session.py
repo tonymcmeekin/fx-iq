@@ -247,6 +247,7 @@ def run_daily_evaluation(
     ] = verify_frozen_policy,
     session_time_utc: datetime | None = None,
     software_commit: str = "UNKNOWN",
+    append_completion_event: bool = True,
 ) -> dict:
     resolved_protocol = (
         protocol
@@ -635,18 +636,19 @@ def run_daily_evaluation(
             ),
         }
 
-        append_event_once(
-            ledger_path,
-            "SESSION_COMPLETED",
-            completion_payload,
-            event_id=(
-                deterministic_event_id(
-                    session_date,
-                    "SESSION_COMPLETED",
-                )
-            ),
-            occurred_at_utc=occurred_at,
-        )
+        if append_completion_event:
+            append_event_once(
+                ledger_path,
+                "SESSION_COMPLETED",
+                completion_payload,
+                event_id=(
+                    deterministic_event_id(
+                        session_date,
+                        "SESSION_COMPLETED",
+                    )
+                ),
+                occurred_at_utc=occurred_at,
+            )
 
     except Exception as error:
         failure_payload = {
@@ -688,7 +690,11 @@ def run_daily_evaluation(
     )
 
     return {
-        "status": "COMPLETED",
+        "status": (
+            "COMPLETED"
+            if append_completion_event
+            else "EVALUATED"
+        ),
         "session_date": (
             session_date.isoformat()
         ),
@@ -697,4 +703,10 @@ def run_daily_evaluation(
             policy_fingerprint
         ),
         "markets": market_summaries,
+        "completion_payload": (
+            completion_payload
+        ),
+        "completion_event_appended": (
+            append_completion_event
+        ),
     }
