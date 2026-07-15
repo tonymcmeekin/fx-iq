@@ -1,0 +1,9 @@
+{
+  "opened": true,
+  "opened_at": "2026-07-15T16:42:30.044216+00:00",
+  "protocol_version": "1.0",
+  "protocol_freeze_commit": "cd66c9b",
+  "repository_commit_at_opening": "33f9d586bf6ec458166e07d3c64e820341997aee",
+  "results_file": "validation/external_holdout_results.json",
+  "post_holdout_tuning_prohibited": true
+}

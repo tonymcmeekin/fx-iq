@@ -1,0 +1,90 @@
+{
+  "protocol_version": "1.0",
+  "protocol_freeze_commit": "cd66c9b",
+  "repository_commit_at_opening": "33f9d586bf6ec458166e07d3c64e820341997aee",
+  "opened_at": "2026-07-15T16:42:30.044216+00:00",
+  "holdout_start": "2024-08-05T00:00:00+00:00",
+  "markets": [
+    {
+      "symbol": "USD_JPY",
+      "training_candles": 4497,
+      "holdout_candles": 502,
+      "holdout_start": "2024-08-05T21:00:00+00:00",
+      "holdout_end": "2026-07-13T21:00:00+00:00",
+      "selected_policy": "atr_regime_filtered",
+      "selection_reason": "Challenger promoted: score advantage=11.32, return=8.02%, PF=1.245, DD=6.00%.",
+      "guarded_trades": 12,
+      "guarded_return": -2.9774999999999996,
+      "guarded_profit_factor": 0.39699866337235207,
+      "guarded_drawdown": 3.35,
+      "baseline_trades": 19,
+      "baseline_return": -2.510800000000002,
+      "baseline_profit_factor": 0.6365163008859807,
+      "baseline_drawdown": 4.2
+    },
+    {
+      "symbol": "USD_CAD",
+      "training_candles": 4497,
+      "holdout_candles": 502,
+      "holdout_start": "2024-08-05T21:00:00+00:00",
+      "holdout_end": "2026-07-13T21:00:00+00:00",
+      "selected_policy": "atr_breakout",
+      "selection_reason": "Baseline retained: challenger failed one or more promotion requirements. Score advantage=8.85, return=-4.07%, PF=0.846, DD=7.35%.",
+      "guarded_trades": 11,
+      "guarded_return": 0.5343000000000098,
+      "guarded_profit_factor": 1.1543996532293022,
+      "guarded_drawdown": 2.23,
+      "baseline_trades": 11,
+      "baseline_return": 0.5343000000000098,
+      "baseline_profit_factor": 1.1543996532293022,
+      "baseline_drawdown": 2.23
+    },
+    {
+      "symbol": "NZD_USD",
+      "training_candles": 4497,
+      "holdout_candles": 502,
+      "holdout_start": "2024-08-05T21:00:00+00:00",
+      "holdout_end": "2026-07-13T21:00:00+00:00",
+      "selected_policy": "atr_regime_sell_bias",
+      "selection_reason": "Challenger promoted: score advantage=7.28, return=6.92%, PF=1.302, DD=2.64%.",
+      "guarded_trades": 6,
+      "guarded_return": -0.06680000000000019,
+      "guarded_profit_factor": 0.967406684557209,
+      "guarded_drawdown": 1.81,
+      "baseline_trades": 16,
+      "baseline_return": 1.1673999999999962,
+      "baseline_profit_factor": 1.2428339643050297,
+      "baseline_drawdown": 3.79
+    }
+  ],
+  "evidence": {
+    "markets_tested": 6,
+    "profitable_markets": 2,
+    "markets_beating_baseline": 1,
+    "markets_with_lower_drawdown": 4,
+    "total_out_of_sample_trades": 291,
+    "combined_return_percent": -2.64999999999999,
+    "worst_market_return_percent": -2.9774999999999996,
+    "maximum_drawdown_percent": 4.58,
+    "untouched_holdout_tested": true,
+    "external_markets_tested": true
+  },
+  "readiness": {
+    "status": "RESEARCH_ONLY",
+    "passed_checks": [
+      "At least five markets tested",
+      "A majority of markets reduce drawdown",
+      "No market loses more than five percent",
+      "Maximum drawdown is below ten percent",
+      "An untouched final holdout was tested",
+      "Additional external markets were tested"
+    ],
+    "failed_checks": [
+      "A majority of markets are profitable",
+      "A majority of markets beat the baseline",
+      "At least 300 out-of-sample trades",
+      "Combined out-of-sample return is positive"
+    ],
+    "reason": "The evidence is not broad or independent enough for paper-trading promotion."
+  }
+}
