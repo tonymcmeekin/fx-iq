@@ -168,3 +168,112 @@ def regime_risk_adjuster(
         base_risk_percent=config.risk_per_trade_percent,
         candles=historical_candles,
     )
+
+
+SELECTIVE_RISK_POLICY_VERSION = "2.0"
+
+
+def calculate_selective_regime_risk(
+    base_risk_percent: float,
+    regime: RegimeLike,
+    direction: str,
+) -> RegimeRiskDecision:
+    """
+    Development policy derived only from pre-5 August 2024 evidence.
+
+    Risk is reduced only for two regime/direction combinations that
+    remained negative under leave-one-market-out robustness testing.
+
+    This policy never increases configured risk.
+    """
+    if base_risk_percent <= 0:
+        raise ValueError(
+            "Base risk percent must be greater than zero."
+        )
+
+    if base_risk_percent > MAXIMUM_RISK_PERCENT:
+        raise ValueError(
+            "Base risk percent cannot exceed one percent."
+        )
+
+    trend = _normalise_label(regime.trend)
+    volatility = _normalise_label(regime.volatility)
+    normalised_direction = _normalise_label(direction)
+    confidence = float(regime.confidence)
+
+    if normalised_direction not in {"BUY", "SELL"}:
+        raise ValueError(
+            "Direction must be BUY or SELL."
+        )
+
+    if confidence < 0 or confidence > 1:
+        raise ValueError(
+            "Regime confidence must be between zero and one."
+        )
+
+    reduce_buy = (
+        normalised_direction == "BUY"
+        and trend == "TRENDING_UP"
+        and volatility == "NORMAL"
+    )
+
+    reduce_sell = (
+        normalised_direction == "SELL"
+        and trend == "TRENDING_DOWN"
+        and volatility == "NORMAL"
+    )
+
+    if reduce_buy:
+        multiplier = 0.50
+        reasons = [
+            "Risk reduced because BUY trades in normal-volatility "
+            "uptrends had robust negative development expectancy."
+        ]
+    elif reduce_sell:
+        multiplier = 0.50
+        reasons = [
+            "Risk reduced because SELL trades in normal-volatility "
+            "downtrends had robust negative development expectancy."
+        ]
+    else:
+        multiplier = 1.00
+        reasons = [
+            "Configured risk retained because this regime and "
+            "direction did not meet the robust-negative threshold."
+        ]
+
+    adjusted_risk = base_risk_percent * multiplier
+
+    adjusted_risk = max(
+        MINIMUM_RISK_PERCENT,
+        adjusted_risk,
+    )
+
+    adjusted_risk = min(
+        adjusted_risk,
+        base_risk_percent,
+        MAXIMUM_RISK_PERCENT,
+    )
+
+    return RegimeRiskDecision(
+        policy_version=SELECTIVE_RISK_POLICY_VERSION,
+        base_risk_percent=round(
+            base_risk_percent,
+            6,
+        ),
+        risk_multiplier=round(
+            multiplier,
+            6,
+        ),
+        adjusted_risk_percent=round(
+            adjusted_risk,
+            6,
+        ),
+        trend=trend,
+        volatility=volatility,
+        regime_confidence=round(
+            confidence,
+            6,
+        ),
+        reasons=reasons,
+    )
