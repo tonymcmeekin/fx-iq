@@ -592,3 +592,165 @@ def test_receipt_failure_fails_daily_operation(
             },
             receipt_directory=tmp_path,
         )
+
+
+def test_main_appends_one_report_only_journal_record(
+    monkeypatch,
+    tmp_path,
+):
+    from contextlib import nullcontext
+
+    journal_path = tmp_path / "daily_operations.jsonl"
+
+    monkeypatch.setattr(
+        daily,
+        "DAILY_OPERATION_JOURNAL_PATH",
+        journal_path,
+    )
+    monkeypatch.setattr(
+        daily,
+        "operation_lock",
+        lambda **kwargs: nullcontext(),
+    )
+    monkeypatch.setattr(
+        daily,
+        "run_daily_operation",
+        lambda **kwargs: {
+            "daily_operation_status": "COMPLETED",
+            "operation_mode": "REPORT_ONLY",
+            "target_session_date": None,
+            "session_already_completed": False,
+            "session_executed": False,
+            "session_result": None,
+            "preflight_health": "HEALTHY",
+            "postflight_health": "HEALTHY",
+            "operator_status": "OBSERVING",
+            "evidence_gate_status": "NOT_READY",
+            "completed_sessions": 1,
+            "positions_closed": 0,
+            "candidate_balance": 10000.0,
+            "shadow_balance": 10000.0,
+            "safe_to_continue_paper_observation": True,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+            "live_trading_decision": "PROHIBITED_BY_DAILY_OPERATION",
+            "broker_orders_sent": 0,
+        },
+    )
+    monkeypatch.setattr(
+        daily,
+        "write_completed_session_receipt",
+        lambda report: None,
+    )
+    monkeypatch.setattr(
+        daily,
+        "resolve_git_commit",
+        lambda: "test-commit",
+    )
+
+    assert daily.main(["--report-only"]) == 0
+
+    records = daily.json.loads(journal_path.read_text().strip())
+
+    assert records["status"] == "REPORT_ONLY"
+    assert records["session_executed"] is False
+
+
+def test_main_appends_failed_journal_record(
+    monkeypatch,
+    tmp_path,
+):
+    from contextlib import nullcontext
+
+    journal_path = tmp_path / "daily_operations.jsonl"
+
+    monkeypatch.setattr(
+        daily,
+        "DAILY_OPERATION_JOURNAL_PATH",
+        journal_path,
+    )
+    monkeypatch.setattr(
+        daily,
+        "operation_lock",
+        lambda **kwargs: nullcontext(),
+    )
+
+    def fail_operation(**kwargs):
+        raise daily.DailyOperationError("simulated failure")
+
+    monkeypatch.setattr(
+        daily,
+        "run_daily_operation",
+        fail_operation,
+    )
+    monkeypatch.setattr(
+        daily,
+        "resolve_git_commit",
+        lambda: "test-commit",
+    )
+
+    assert daily.main(["--report-only"]) == 1
+
+    record = daily.json.loads(journal_path.read_text().strip())
+
+    assert record["status"] == "FAILED"
+    assert record["failure_type"] == "DailyOperationError"
+    assert record["failure_message"] == "simulated failure"
+
+
+def test_main_fails_when_journal_append_fails(
+    monkeypatch,
+):
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        daily,
+        "operation_lock",
+        lambda **kwargs: nullcontext(),
+    )
+    monkeypatch.setattr(
+        daily,
+        "run_daily_operation",
+        lambda **kwargs: {
+            "daily_operation_status": "COMPLETED",
+            "operation_mode": "REPORT_ONLY",
+            "target_session_date": None,
+            "session_already_completed": False,
+            "session_executed": False,
+            "session_result": None,
+            "preflight_health": "HEALTHY",
+            "postflight_health": "HEALTHY",
+            "operator_status": "OBSERVING",
+            "evidence_gate_status": "NOT_READY",
+            "completed_sessions": 1,
+            "positions_closed": 0,
+            "candidate_balance": 10000.0,
+            "shadow_balance": 10000.0,
+            "safe_to_continue_paper_observation": True,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+            "live_trading_decision": "PROHIBITED_BY_DAILY_OPERATION",
+            "broker_orders_sent": 0,
+        },
+    )
+    monkeypatch.setattr(
+        daily,
+        "write_completed_session_receipt",
+        lambda report: None,
+    )
+    monkeypatch.setattr(
+        daily,
+        "resolve_git_commit",
+        lambda: "test-commit",
+    )
+
+    def fail_append(*args, **kwargs):
+        raise daily.DailyOperationJournalError("simulated journal failure")
+
+    monkeypatch.setattr(
+        daily,
+        "append_daily_operation_record",
+        fail_append,
+    )
+
+    assert daily.main(["--report-only"]) == 1

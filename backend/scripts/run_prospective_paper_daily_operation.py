@@ -23,6 +23,11 @@ if str(PROJECT_ROOT) not in sys.path:
         str(PROJECT_ROOT),
     )
 
+from app.paper_trading.daily_operation_journal import (  # noqa: E402
+    DailyOperationJournalError,
+    append_daily_operation_record,
+    build_daily_operation_record,
+)
 from app.paper_trading.session_receipts import (  # noqa: E402
     SessionReceiptError,
     write_session_receipt,
@@ -35,6 +40,7 @@ HEALTH_SCRIPT = SCRIPTS_DIR / "check_prospective_paper_health.py"
 OPERATOR_SCRIPT = SCRIPTS_DIR / "report_prospective_paper_operator_status.py"
 LOCK_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operation.lock"
 RECEIPT_DIRECTORY = PROJECT_ROOT / "paper_ledger" / "receipts"
+DAILY_OPERATION_JOURNAL_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operations.jsonl"
 
 
 class DailyOperationError(RuntimeError):
@@ -568,15 +574,66 @@ def write_completed_session_receipt(
         ) from error
 
 
+def resolve_git_commit() -> str:
+    """Return the current software commit without failing an operation."""
+    completed = subprocess.run(
+        [
+            "git",
+            "rev-parse",
+            "HEAD",
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    commit = completed.stdout.strip()
+
+    return commit or "UNKNOWN"
+
+
+def sanitize_failure_message(
+    error: BaseException,
+) -> str:
+    """Return a bounded single-line failure description."""
+    message = " ".join(str(error).split())
+
+    if not message:
+        message = type(error).__name__
+
+    return message[:1000]
+
+
+def resolve_journal_status(
+    *,
+    report_only: bool,
+    report: dict[str, Any],
+) -> str:
+    """Map a completed invocation to its stable journal status."""
+    if report_only:
+        return "REPORT_ONLY"
+
+    if report.get("session_already_completed") is True:
+        return "ALREADY_COMPLETED"
+
+    return "COMPLETED"
+
+
 def main(
     argv: Sequence[str] | None = None,
 ) -> int:
     parser = build_parser()
     arguments = parser.parse_args(argv)
 
-    try:
-        operation_mode = "REPORT_ONLY" if arguments.report_only else "PROSPECTIVE_PAPER_SESSION"
+    operation_id = uuid.uuid4().hex
+    started_at_utc = datetime.now(UTC)
+    operation_mode = "REPORT_ONLY" if arguments.report_only else "PROSPECTIVE_PAPER_SESSION"
 
+    report: dict[str, Any] | None = None
+    operation_error: BaseException | None = None
+
+    try:
         with operation_lock(
             operation_mode=operation_mode,
             session_date=arguments.session_date,
@@ -593,11 +650,110 @@ def main(
             )
 
             report["session_receipt_path"] = (
-                None if receipt_path is None else str(receipt_path.relative_to(PROJECT_ROOT))
+                None
+                if receipt_path is None
+                else str(
+                    receipt_path.relative_to(
+                        PROJECT_ROOT,
+                    )
+                )
             )
-    except DailyOperationError as error:
+    except Exception as error:
+        operation_error = error
+
+    completed_at_utc = datetime.now(UTC)
+
+    if report is None:
+        journal_status = "FAILED"
+        target_session_date = (
+            None
+            if arguments.report_only
+            else (
+                arguments.session_date
+                if arguments.session_date is not None
+                else started_at_utc.date().isoformat()
+            )
+        )
+        session_executed = False
+        session_already_completed = False
+        session_receipt_path = None
+        runtime_health = None
+        operator_status = None
+        evidence_gate_status = None
+        completed_sessions = None
+        candidate_balance = None
+        shadow_balance = None
+        broker_orders_sent = 0
+    else:
+        journal_status = resolve_journal_status(
+            report_only=arguments.report_only,
+            report=report,
+        )
+        target_session_date = report.get("target_session_date")
+        session_executed = report.get("session_executed") is True
+        session_already_completed = report.get("session_already_completed") is True
+        session_receipt_path = report.get("session_receipt_path")
+        runtime_health = report.get("postflight_health")
+        operator_status = report.get("operator_status")
+        evidence_gate_status = report.get("evidence_gate_status")
+        completed_sessions = report.get("completed_sessions")
+        candidate_balance = report.get("candidate_balance")
+        shadow_balance = report.get("shadow_balance")
+        broker_orders_sent = report.get(
+            "broker_orders_sent",
+            0,
+        )
+
+    try:
+        journal_record = build_daily_operation_record(
+            operation_id=operation_id,
+            started_at_utc=started_at_utc,
+            completed_at_utc=completed_at_utc,
+            status=journal_status,
+            operation_mode=operation_mode,
+            target_session_date=target_session_date,
+            session_executed=session_executed,
+            session_already_completed=session_already_completed,
+            session_receipt_path=session_receipt_path,
+            runtime_health=runtime_health,
+            operator_status=operator_status,
+            evidence_gate_status=evidence_gate_status,
+            completed_sessions=completed_sessions,
+            candidate_balance=candidate_balance,
+            shadow_balance=shadow_balance,
+            broker_orders_sent=broker_orders_sent,
+            safe_for_live_trading=False,
+            protocol_live_trading_permitted=False,
+            git_commit=resolve_git_commit(),
+            hostname=socket.gethostname(),
+            pid=os.getpid(),
+            failure_type=(None if operation_error is None else type(operation_error).__name__),
+            failure_message=(
+                None if operation_error is None else sanitize_failure_message(operation_error)
+            ),
+        )
+
+        append_daily_operation_record(
+            DAILY_OPERATION_JOURNAL_PATH,
+            journal_record,
+        )
+    except DailyOperationJournalError as error:
         print(
-            f"ERROR: {error}",
+            f"ERROR: Daily operation journal failure: {error}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if operation_error is not None:
+        print(
+            f"ERROR: {operation_error}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if report is None:
+        print(
+            "ERROR: Daily operation completed without a report.",
             file=sys.stderr,
         )
         return 1
