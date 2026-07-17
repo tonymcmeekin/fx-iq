@@ -21,7 +21,6 @@ from app.paper_trading.runtime_state import (
     empty_runtime_state,
 )
 
-
 POLICY_FINGERPRINT = (
     "test-fingerprint"
 )
@@ -598,9 +597,27 @@ def test_fill_does_not_mutate_input_state():
     assert updated != state
 
 
-def test_execution_creates_no_real_runtime_files(
+def test_execution_does_not_modify_real_runtime_files(
     tmp_path,
 ):
+    from pathlib import Path
+
+    runtime_paths = (
+        Path("paper_ledger/events.jsonl"),
+        Path("paper_ledger/state.json"),
+        Path("data/prospective_paper"),
+    )
+
+    before = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
+
     state = state_with_pending()
 
     fill_pending_entry(
@@ -619,16 +636,14 @@ def test_execution_creates_no_real_runtime_files(
         ),
     )
 
-    from pathlib import Path
+    after = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
 
-    assert not Path(
-        "paper_ledger/events.jsonl"
-    ).exists()
-
-    assert not Path(
-        "paper_ledger/state.json"
-    ).exists()
-
-    assert not Path(
-        "data/prospective_paper"
-    ).exists()
+    assert after == before

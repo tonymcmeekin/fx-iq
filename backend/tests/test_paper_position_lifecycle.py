@@ -21,7 +21,6 @@ from app.paper_trading.runtime_state import (
     empty_runtime_state,
 )
 
-
 POLICY_FINGERPRINT = (
     "test-fingerprint"
 )
@@ -640,8 +639,24 @@ def test_input_state_is_not_mutated():
     ] == {}
 
 
-def test_lifecycle_creates_no_real_runtime_files():
+def test_lifecycle_does_not_modify_real_runtime_files():
     from pathlib import Path
+
+    runtime_paths = (
+        Path("paper_ledger/events.jsonl"),
+        Path("paper_ledger/state.json"),
+        Path("data/prospective_paper"),
+    )
+
+    before = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
 
     state = open_state()
 
@@ -656,14 +671,14 @@ def test_lifecycle_creates_no_real_runtime_files():
         ),
     )
 
-    assert not Path(
-        "paper_ledger/events.jsonl"
-    ).exists()
+    after = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
 
-    assert not Path(
-        "paper_ledger/state.json"
-    ).exists()
-
-    assert not Path(
-        "data/prospective_paper"
-    ).exists()
+    assert after == before

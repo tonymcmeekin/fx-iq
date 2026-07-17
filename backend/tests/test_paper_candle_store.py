@@ -8,14 +8,13 @@ import pytest
 
 from app.market_data.models import Candle
 from app.paper_trading.candle_store import (
-    CandleStoreError,
     FIELDNAMES,
+    CandleStoreError,
     candle_to_row,
     persist_prospective_candles,
     read_candle_store,
     write_candle_store,
 )
-
 
 START_DATE = date(
     2026,
@@ -386,9 +385,27 @@ def test_non_chronological_write_is_rejected(
         )
 
 
-def test_tests_do_not_use_real_runtime_paths(
+def test_tests_do_not_modify_real_runtime_paths(
     tmp_path,
 ):
+    from pathlib import Path
+
+    runtime_paths = (
+        Path("paper_ledger/events.jsonl"),
+        Path("paper_ledger/state.json"),
+        Path("data/prospective_paper"),
+    )
+
+    before = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
+
     persist_prospective_candles(
         tmp_path / "test.csv",
         [
@@ -409,16 +426,14 @@ def test_tests_do_not_use_real_runtime_paths(
         ),
     )
 
-    from pathlib import Path
+    after = {
+        path: (
+            path.exists(),
+            path.read_bytes()
+            if path.is_file()
+            else None,
+        )
+        for path in runtime_paths
+    }
 
-    assert not Path(
-        "paper_ledger/events.jsonl"
-    ).exists()
-
-    assert not Path(
-        "paper_ledger/state.json"
-    ).exists()
-
-    assert not Path(
-        "data/prospective_paper"
-    ).exists()
+    assert after == before
