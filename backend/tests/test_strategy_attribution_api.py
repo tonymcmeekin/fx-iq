@@ -1,4 +1,4 @@
-"""Tests for the strategy attribution report CLI."""
+"""Tests for the read-only strategy attribution API."""
 
 from __future__ import annotations
 
@@ -6,24 +6,22 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.analytics import attribution_reporting
+from app.main import app
 from app.paper_trading.ledger import append_event
-from scripts import report_strategy_attribution as report
+
+client = TestClient(app)
 
 
-def candidate_trade(
-    *,
-    strategy_name: str = "atr_breakout",
-    market: str = "EUR_GBP",
-    account_return_percent: float = 0.75,
-) -> dict:
+def candidate_trade() -> dict:
     return {
-        "strategy_name": strategy_name,
-        "market": market,
+        "strategy_name": "atr_breakout",
+        "market": "EUR_GBP",
         "direction": "BUY",
         "exit_reason": "Take-profit hit.",
-        "account_return_percent": (account_return_percent),
+        "account_return_percent": 0.75,
         "candles_held": 4,
     }
 
@@ -37,7 +35,7 @@ def append_close_event(
         {
             "status": "CLOSED",
             "market": "EUR_GBP",
-            "candidate_trade": (candidate_trade()),
+            "candidate_trade": candidate_trade(),
             "shadow_trade": {
                 **candidate_trade(),
                 "account_return_percent": 99.0,
@@ -45,7 +43,7 @@ def append_close_event(
             "broker_orders_submitted": 0,
         },
         event_id="close-1",
-        occurred_at_utc=("2026-07-17T08:00:00Z"),
+        occurred_at_utc="2026-07-17T08:00:00Z",
     )
 
 
@@ -65,10 +63,14 @@ def ledger_path(
     return path
 
 
-def test_empty_verified_ledger_returns_valid_report(
+def test_empty_ledger_returns_valid_report(
     ledger_path,
 ):
-    result = report.perform_report()
+    response = client.get("/analytics/strategy-attribution")
+
+    assert response.status_code == 200
+
+    result = response.json()
 
     assert result["completed_trade_count"] == 0
     assert result["supported_close_event_count"] == 0
@@ -78,53 +80,41 @@ def test_empty_verified_ledger_returns_valid_report(
     assert result["protocol_live_trading_permitted"] is False
 
 
-def test_report_uses_configured_ledger(
+def test_verified_close_event_is_attributed(
     ledger_path,
 ):
     append_close_event(
         ledger_path,
     )
 
-    result = report.perform_report()
+    response = client.get("/analytics/strategy-attribution")
+
+    assert response.status_code == 200
+
+    result = response.json()
 
     assert result["completed_trade_count"] == 1
+    assert result["supported_close_event_count"] == 1
     assert result["overall"]["net_profit_percent"] == 0.75
     assert result["by_strategy"][0]["strategy"] == "atr_breakout"
 
 
-def test_execute_prints_report(
+def test_endpoint_uses_candidate_not_shadow_result(
     ledger_path,
-    capsys,
 ):
     append_close_event(
         ledger_path,
     )
 
-    result = report.execute([])
+    response = client.get("/analytics/strategy-attribution")
 
-    captured = capsys.readouterr()
-    payload = json.loads(captured.out)
+    result = response.json()
 
-    assert result == 0
-    assert captured.err == ""
-    assert payload["supported_close_event_count"] == 1
-    assert payload["ledger_writes_performed"] == 0
+    assert result["overall"]["net_profit_percent"] == 0.75
+    assert result["overall"]["net_profit_percent"] != 99.0
 
 
-def test_compact_output_is_valid_json(
-    ledger_path,
-    capsys,
-):
-    result = report.execute(["--compact"])
-
-    captured = capsys.readouterr()
-
-    assert result == 0
-    assert "\n" not in captured.out.strip()
-    assert json.loads(captured.out)["completed_trade_count"] == 0
-
-
-def test_execute_does_not_modify_ledger(
+def test_endpoint_does_not_modify_ledger(
     ledger_path,
 ):
     append_close_event(
@@ -133,17 +123,16 @@ def test_execute_does_not_modify_ledger(
 
     before = ledger_path.read_bytes()
 
-    result = report.execute([])
+    response = client.get("/analytics/strategy-attribution")
 
     after = ledger_path.read_bytes()
 
-    assert result == 0
+    assert response.status_code == 200
     assert after == before
 
 
-def test_tampered_ledger_returns_error(
+def test_tampered_ledger_returns_conflict(
     ledger_path,
-    capsys,
 ):
     append_close_event(
         ledger_path,
@@ -158,25 +147,29 @@ def test_tampered_ledger_returns_error(
         encoding="utf-8",
     )
 
-    result = report.execute([])
+    response = client.get("/analytics/strategy-attribution")
 
-    captured = capsys.readouterr()
-    payload = json.loads(captured.err)
+    assert response.status_code == 409
 
-    assert result == 1
-    assert captured.out == ""
-    assert payload["status"] == "ERROR"
-    assert "Ledger integrity check failed" in payload["error"]
-    assert payload["ledger_writes_performed"] == 0
-    assert payload["broker_orders_submitted"] == 0
+    detail = response.json()["detail"]
+
+    assert detail["status"] == "ERROR"
+    assert "Ledger integrity check failed" in detail["error"]
+    assert detail["ledger_writes_performed"] == 0
+    assert detail["broker_orders_submitted"] == 0
+    assert detail["safe_for_live_trading"] is False
+    assert detail["protocol_live_trading_permitted"] is False
 
 
-def test_unknown_argument_is_rejected(
+def test_endpoint_accepts_no_ledger_path_parameter(
     ledger_path,
 ):
-    with pytest.raises(
-        SystemExit,
-    ) as error:
-        report.execute(["--ledger-path", "other.jsonl"])
+    response = client.get(
+        "/analytics/strategy-attribution",
+        params={
+            "ledger_path": "/tmp/other.jsonl",
+        },
+    )
 
-    assert error.value.code == 2
+    assert response.status_code == 200
+    assert response.json()["verified_ledger_event_count"] == 0

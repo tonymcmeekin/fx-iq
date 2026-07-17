@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.analytics.router import router as analytics_router
 from app.backtesting.router import router as backtesting_router
 from app.decision.router import router as decision_router
 from app.market_data.router import router as market_data_router
@@ -15,6 +16,7 @@ app.include_router(signals_router)
 app.include_router(risk_router)
 app.include_router(decision_router)
 app.include_router(backtesting_router)
+app.include_router(analytics_router)
 
 
 @app.get("/")
