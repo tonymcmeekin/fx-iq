@@ -10,6 +10,12 @@ from app.analytics.attribution_reporting import (
     AttributionReportError,
     perform_report,
 )
+from app.analytics.overview_reporting import (
+    AnalyticsOverviewError,
+)
+from app.analytics.overview_reporting import (
+    perform_report as perform_overview_report,
+)
 from app.analytics.prospective_health_reporting import (
     ProspectiveHealthReportError,
 )
@@ -60,6 +66,31 @@ def get_prospective_paper_health() -> dict[str, Any]:
             status_code=409,
             detail={
                 "status": "UNHEALTHY",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
+
+
+@router.get("/overview")
+def get_analytics_overview() -> dict[str, Any]:
+    """
+    Return one verified operator-facing analytics overview.
+
+    No caller-supplied filesystem paths are accepted.
+    """
+    try:
+        return perform_overview_report()
+    except AnalyticsOverviewError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
                 "error": str(error),
                 "network_calls_made": 0,
                 "files_changed": 0,
