@@ -333,12 +333,43 @@ def test_invalid_daily_session_date_is_rejected():
         )
 
 
+def test_lock_contains_structured_metadata(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+
+    with daily.operation_lock(
+        lock_path,
+        operation_mode="PROSPECTIVE_PAPER_SESSION",
+        session_date="2026-07-18",
+    ) as metadata:
+        stored = daily.json.loads(lock_path.read_text())
+
+        assert stored == metadata
+        assert stored["schema_version"] == 1
+        assert stored["pid"] == daily.os.getpid()
+        assert stored["hostname"] == daily.socket.gethostname()
+        assert stored["operation_mode"] == ("PROSPECTIVE_PAPER_SESSION")
+        assert stored["session_date"] == "2026-07-18"
+        assert stored["ownership_token"]
+        assert stored["created_at_utc"]
+
+    assert not lock_path.exists()
+
+
 def test_stale_operation_lock_is_recovered(
     tmp_path,
     monkeypatch,
 ):
     lock_path = tmp_path / "daily-operation.lock"
-    lock_path.write_text("12345\n")
+
+    stale_metadata = daily.build_lock_metadata(
+        operation_mode="REPORT_ONLY",
+        session_date=None,
+    )
+    stale_metadata["pid"] = 12345
+
+    lock_path.write_text(daily.json.dumps(stale_metadata))
 
     monkeypatch.setattr(
         daily,
@@ -346,9 +377,10 @@ def test_stale_operation_lock_is_recovered(
         lambda pid: False,
     )
 
-    with daily.operation_lock(lock_path):
+    with daily.operation_lock(lock_path) as current_metadata:
         assert lock_path.exists()
-        assert int(lock_path.read_text().strip()) == daily.os.getpid()
+        assert current_metadata["pid"] == daily.os.getpid()
+        assert current_metadata["ownership_token"] != stale_metadata["ownership_token"]
 
     assert not lock_path.exists()
 
@@ -358,7 +390,14 @@ def test_active_external_lock_is_not_removed(
     monkeypatch,
 ):
     lock_path = tmp_path / "daily-operation.lock"
-    lock_path.write_text("12345\n")
+
+    existing_metadata = daily.build_lock_metadata(
+        operation_mode="REPORT_ONLY",
+        session_date=None,
+    )
+    existing_metadata["pid"] = 12345
+
+    lock_path.write_text(daily.json.dumps(existing_metadata))
 
     monkeypatch.setattr(
         daily,
@@ -374,18 +413,59 @@ def test_active_external_lock_is_not_removed(
             pass
 
     assert lock_path.exists()
-    assert lock_path.read_text() == "12345\n"
+
+    stored = daily.json.loads(lock_path.read_text())
+    assert stored == existing_metadata
+
+
+def test_foreign_host_lock_requires_manual_review(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+
+    existing_metadata = daily.build_lock_metadata(
+        operation_mode="REPORT_ONLY",
+        session_date=None,
+    )
+    existing_metadata["hostname"] = "another-host.example"
+
+    lock_path.write_text(daily.json.dumps(existing_metadata))
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="another host",
+    ):
+        with daily.operation_lock(lock_path):
+            pass
+
+    assert lock_path.exists()
 
 
 def test_malformed_lock_requires_manual_review(
     tmp_path,
 ):
     lock_path = tmp_path / "daily-operation.lock"
-    lock_path.write_text("not-a-process-id\n")
+    lock_path.write_text("not-json\n")
 
     with pytest.raises(
         daily.DailyOperationError,
         match="malformed",
+    ):
+        with daily.operation_lock(lock_path):
+            pass
+
+    assert lock_path.exists()
+
+
+def test_legacy_pid_only_lock_requires_manual_review(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+    lock_path.write_text("12345\n")
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="not a JSON object",
     ):
         with daily.operation_lock(lock_path):
             pass
@@ -398,8 +478,15 @@ def test_operation_cleanup_preserves_replacement_lock(
 ):
     lock_path = tmp_path / "daily-operation.lock"
 
+    replacement_metadata = daily.build_lock_metadata(
+        operation_mode="REPORT_ONLY",
+        session_date=None,
+    )
+
     with daily.operation_lock(lock_path):
-        lock_path.write_text("99999\n")
+        lock_path.write_text(daily.json.dumps(replacement_metadata))
 
     assert lock_path.exists()
-    assert lock_path.read_text() == "99999\n"
+
+    stored = daily.json.loads(lock_path.read_text())
+    assert stored == replacement_metadata

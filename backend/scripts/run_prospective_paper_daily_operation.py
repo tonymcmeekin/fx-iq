@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
+import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -38,24 +40,120 @@ def resolve_target_session_date(
         raise DailyOperationError("Session date must use YYYY-MM-DD format.") from error
 
 
-def read_lock_pid(
+def build_lock_metadata(
+    *,
+    operation_mode: str,
+    session_date: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "pid": os.getpid(),
+        "hostname": socket.gethostname(),
+        "created_at_utc": datetime.now(UTC).isoformat(),
+        "operation_mode": operation_mode,
+        "session_date": session_date,
+        "ownership_token": uuid.uuid4().hex,
+    }
+
+
+def read_lock_metadata(
     lock_path: Path,
-) -> int:
+) -> dict[str, Any]:
     try:
-        value = lock_path.read_text().strip()
-        pid = int(value)
-    except (OSError, ValueError) as error:
+        raw_value = lock_path.read_text()
+    except FileNotFoundError:
+        raise
+    except OSError as error:
+        raise DailyOperationError(
+            "The prospective paper operation lock could not be read."
+        ) from error
+
+    try:
+        metadata = json.loads(raw_value)
+    except json.JSONDecodeError as error:
         raise DailyOperationError(
             "The prospective paper operation lock is malformed and requires manual review."
         ) from error
 
-    if pid <= 0:
+    if not isinstance(metadata, dict):
+        raise DailyOperationError(
+            "The prospective paper operation lock is not a JSON object and requires manual review."
+        )
+
+    if metadata.get("schema_version") != 1:
+        raise DailyOperationError(
+            "The prospective paper operation lock uses an "
+            "unsupported schema and requires manual review."
+        )
+
+    pid = metadata.get("pid")
+
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
         raise DailyOperationError(
             "The prospective paper operation lock contains an "
             "invalid process identifier and requires manual review."
         )
 
-    return pid
+    hostname = metadata.get("hostname")
+
+    if not isinstance(hostname, str) or not hostname.strip():
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid hostname and requires manual review."
+        )
+
+    ownership_token = metadata.get("ownership_token")
+
+    if not isinstance(ownership_token, str) or not ownership_token:
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid ownership token and requires manual review."
+        )
+
+    created_at_utc = metadata.get("created_at_utc")
+
+    if not isinstance(created_at_utc, str):
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid creation time and requires manual review."
+        )
+
+    try:
+        created_at = datetime.fromisoformat(created_at_utc)
+    except ValueError as error:
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid creation time and requires manual review."
+        ) from error
+
+    if created_at.tzinfo is None:
+        raise DailyOperationError(
+            "The prospective paper operation lock creation time must be timezone-aware."
+        )
+
+    operation_mode = metadata.get("operation_mode")
+
+    if operation_mode not in {
+        "REPORT_ONLY",
+        "PROSPECTIVE_PAPER_SESSION",
+    }:
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid operation mode and requires manual review."
+        )
+
+    session_date = metadata.get("session_date")
+
+    if session_date is not None and not isinstance(
+        session_date,
+        str,
+    ):
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid session date and requires manual review."
+        )
+
+    return metadata
 
 
 def process_is_running(
@@ -77,18 +175,16 @@ def process_is_running(
 def remove_owned_lock(
     lock_path: Path,
     *,
-    owner_pid: int,
+    ownership_token: str,
 ) -> None:
     try:
-        current_pid = read_lock_pid(
+        current_metadata = read_lock_metadata(
             lock_path,
         )
-    except DailyOperationError:
-        return
-    except FileNotFoundError:
+    except DailyOperationError, FileNotFoundError:
         return
 
-    if current_pid == owner_pid:
+    if current_metadata["ownership_token"] == ownership_token:
         lock_path.unlink(
             missing_ok=True,
         )
@@ -97,26 +193,57 @@ def remove_owned_lock(
 @contextmanager
 def operation_lock(
     lock_path: Path = LOCK_PATH,
-) -> Iterator[None]:
+    *,
+    operation_mode: str = "REPORT_ONLY",
+    session_date: str | None = None,
+) -> Iterator[dict[str, Any]]:
     lock_path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    owner_pid = os.getpid()
+    metadata = build_lock_metadata(
+        operation_mode=operation_mode,
+        session_date=session_date,
+    )
+    ownership_token = metadata["ownership_token"]
+    encoded_metadata = (
+        json.dumps(
+            metadata,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+
     descriptor = -1
     acquired = False
 
-    for attempt in range(2):
+    for _attempt in range(3):
         try:
             descriptor = os.open(
                 lock_path,
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY,
             )
         except FileExistsError as error:
-            existing_pid = read_lock_pid(
-                lock_path,
-            )
+            try:
+                existing_metadata = read_lock_metadata(
+                    lock_path,
+                )
+            except FileNotFoundError:
+                continue
+
+            existing_hostname = existing_metadata["hostname"]
+            local_hostname = socket.gethostname()
+
+            if existing_hostname != local_hostname:
+                raise DailyOperationError(
+                    "A prospective paper operation lock exists "
+                    f"for another host: {existing_hostname!r}. "
+                    "Manual review is required."
+                ) from error
+
+            existing_pid = existing_metadata["pid"]
 
             if process_is_running(existing_pid):
                 raise DailyOperationError(
@@ -129,34 +256,34 @@ def operation_lock(
             except FileNotFoundError:
                 pass
 
-            if attempt == 0:
-                continue
+            continue
 
-            raise DailyOperationError(
-                "The stale prospective paper operation lock could not be safely recovered."
-            ) from error
+        try:
+            os.write(
+                descriptor,
+                encoded_metadata,
+            )
+        finally:
+            os.close(descriptor)
+            descriptor = -1
 
-        os.write(
-            descriptor,
-            f"{owner_pid}\n".encode(),
-        )
-        os.close(descriptor)
-        descriptor = -1
         acquired = True
         break
 
     if not acquired:
-        raise DailyOperationError("The prospective paper operation lock could not be acquired.")
+        raise DailyOperationError(
+            "The stale prospective paper operation lock could not be safely recovered."
+        )
 
     try:
-        yield
+        yield metadata
     finally:
         if descriptor != -1:
             os.close(descriptor)
 
         remove_owned_lock(
             lock_path,
-            owner_pid=owner_pid,
+            ownership_token=ownership_token,
         )
 
 
@@ -401,7 +528,12 @@ def main(
     arguments = parser.parse_args(argv)
 
     try:
-        with operation_lock():
+        operation_mode = "REPORT_ONLY" if arguments.report_only else "PROSPECTIVE_PAPER_SESSION"
+
+        with operation_lock(
+            operation_mode=operation_mode,
+            session_date=arguments.session_date,
+        ):
             report = run_daily_operation(
                 report_only=arguments.report_only,
                 use_oanda_practice=arguments.use_oanda_practice,
