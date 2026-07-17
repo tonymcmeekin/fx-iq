@@ -10,6 +10,12 @@ from app.analytics.attribution_reporting import (
     AttributionReportError,
     perform_report,
 )
+from app.analytics.operator_status_reporting import (
+    OperatorStatusReportError,
+)
+from app.analytics.operator_status_reporting import (
+    perform_report as perform_operator_status_report,
+)
 from app.analytics.overview_reporting import (
     AnalyticsOverviewError,
 )
@@ -87,6 +93,31 @@ def get_analytics_overview() -> dict[str, Any]:
     try:
         return perform_overview_report()
     except AnalyticsOverviewError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
+
+
+@router.get("/operator-status")
+def get_operator_status() -> dict[str, Any]:
+    """
+    Return the verified prospective paper operator-status report.
+
+    No caller-supplied filesystem paths are accepted.
+    """
+    try:
+        return perform_operator_status_report()
+    except OperatorStatusReportError as error:
         raise HTTPException(
             status_code=409,
             detail={
