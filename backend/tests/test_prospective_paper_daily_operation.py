@@ -200,3 +200,134 @@ def test_run_json_command_rejects_invalid_json(monkeypatch):
         daily.run_json_command(
             ["invalid"],
         )
+
+
+def test_duplicate_session_date_skips_session_command(
+    monkeypatch,
+):
+    commands = []
+
+    preflight = healthy_report()
+    preflight["last_completed_session_date"] = "2026-07-18"
+
+    responses = iter(
+        [
+            preflight,
+            healthy_report(),
+            operator_report(),
+        ]
+    )
+
+    def fake_run(command):
+        commands.append(command)
+        return next(responses)
+
+    monkeypatch.setattr(
+        daily,
+        "run_json_command",
+        fake_run,
+    )
+
+    result = daily.run_daily_operation(
+        report_only=False,
+        use_oanda_practice=True,
+        session_date="2026-07-18",
+        candle_count=500,
+    )
+
+    assert len(commands) == 3
+    assert result["daily_operation_status"] == "ALREADY_COMPLETED"
+    assert result["target_session_date"] == "2026-07-18"
+    assert result["session_already_completed"] is True
+    assert result["session_executed"] is False
+    assert result["session_result"] is None
+
+    assert all(str(daily.SESSION_SCRIPT) not in command for command in commands)
+
+
+def test_new_session_date_runs_session_command(
+    monkeypatch,
+):
+    commands = []
+
+    preflight = healthy_report()
+    preflight["last_completed_session_date"] = "2026-07-17"
+
+    responses = iter(
+        [
+            preflight,
+            {
+                "status": "COMPLETED",
+                "session_date": "2026-07-18",
+            },
+            healthy_report(),
+            operator_report(),
+        ]
+    )
+
+    def fake_run(command):
+        commands.append(command)
+        return next(responses)
+
+    monkeypatch.setattr(
+        daily,
+        "run_json_command",
+        fake_run,
+    )
+
+    result = daily.run_daily_operation(
+        report_only=False,
+        use_oanda_practice=True,
+        session_date="2026-07-18",
+        candle_count=500,
+    )
+
+    assert len(commands) == 4
+    assert result["daily_operation_status"] == "COMPLETED"
+    assert result["session_already_completed"] is False
+    assert result["session_executed"] is True
+
+    assert str(daily.SESSION_SCRIPT) in commands[1]
+
+
+def test_operation_lock_rejects_overlapping_operation(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+
+    with daily.operation_lock(lock_path):
+        assert lock_path.exists()
+
+        with pytest.raises(
+            daily.DailyOperationError,
+            match="already running",
+        ):
+            with daily.operation_lock(lock_path):
+                pass
+
+    assert not lock_path.exists()
+
+
+def test_operation_lock_is_removed_after_failure(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+
+    with pytest.raises(
+        RuntimeError,
+        match="simulated failure",
+    ):
+        with daily.operation_lock(lock_path):
+            raise RuntimeError("simulated failure")
+
+    assert not lock_path.exists()
+
+
+def test_invalid_daily_session_date_is_rejected():
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="YYYY-MM-DD",
+    ):
+        daily.resolve_target_session_date(
+            "18-07-2026",
+        )

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,10 +19,60 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 SESSION_SCRIPT = SCRIPTS_DIR / "run_prospective_paper_session.py"
 HEALTH_SCRIPT = SCRIPTS_DIR / "check_prospective_paper_health.py"
 OPERATOR_SCRIPT = SCRIPTS_DIR / "report_prospective_paper_operator_status.py"
+LOCK_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operation.lock"
 
 
 class DailyOperationError(RuntimeError):
     """Raised when a daily operation safety or execution check fails."""
+
+
+def resolve_target_session_date(
+    value: str | None,
+) -> str:
+    if value is None:
+        return datetime.now(UTC).date().isoformat()
+
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as error:
+        raise DailyOperationError("Session date must use YYYY-MM-DD format.") from error
+
+
+@contextmanager
+def operation_lock(
+    lock_path: Path = LOCK_PATH,
+) -> Iterator[None]:
+    lock_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    try:
+        descriptor = os.open(
+            lock_path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+        )
+    except FileExistsError as error:
+        raise DailyOperationError(
+            "Another prospective paper daily operation is already running."
+        ) from error
+
+    try:
+        os.write(
+            descriptor,
+            f"{os.getpid()}\n".encode(),
+        )
+        os.close(descriptor)
+        descriptor = -1
+
+        yield
+    finally:
+        if descriptor != -1:
+            os.close(descriptor)
+
+        lock_path.unlink(
+            missing_ok=True,
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -182,6 +235,14 @@ def run_daily_operation(
         str(OPERATOR_SCRIPT),
     ]
 
+    target_session_date = (
+        None
+        if report_only
+        else resolve_target_session_date(
+            session_date,
+        )
+    )
+
     preflight_health = run_json_command(
         health_command,
     )
@@ -190,13 +251,18 @@ def run_daily_operation(
         stage="preflight",
     )
 
+    session_already_completed = (
+        target_session_date is not None
+        and preflight_health.get("last_completed_session_date") == target_session_date
+    )
+
     session_result: dict[str, Any] | None = None
 
-    if not report_only:
+    if not report_only and not session_already_completed:
         session_result = run_json_command(
             build_session_command(
                 use_oanda_practice=use_oanda_practice,
-                session_date=session_date,
+                session_date=target_session_date,
                 candle_count=candle_count,
             )
         )
@@ -217,9 +283,13 @@ def run_daily_operation(
     )
 
     return {
-        "daily_operation_status": "COMPLETED",
+        "daily_operation_status": (
+            "ALREADY_COMPLETED" if session_already_completed else "COMPLETED"
+        ),
         "operation_mode": ("REPORT_ONLY" if report_only else "PROSPECTIVE_PAPER_SESSION"),
-        "session_executed": not report_only,
+        "target_session_date": target_session_date,
+        "session_already_completed": session_already_completed,
+        "session_executed": (not report_only and not session_already_completed),
         "session_result": session_result,
         "preflight_health": preflight_health.get("status"),
         "postflight_health": postflight_health.get("status"),
@@ -246,12 +316,13 @@ def main(
     arguments = parser.parse_args(argv)
 
     try:
-        report = run_daily_operation(
-            report_only=arguments.report_only,
-            use_oanda_practice=arguments.use_oanda_practice,
-            session_date=arguments.session_date,
-            candle_count=arguments.candle_count,
-        )
+        with operation_lock():
+            report = run_daily_operation(
+                report_only=arguments.report_only,
+                use_oanda_practice=arguments.use_oanda_practice,
+                session_date=arguments.session_date,
+                candle_count=arguments.candle_count,
+            )
     except DailyOperationError as error:
         print(
             f"ERROR: {error}",
