@@ -38,6 +38,62 @@ def resolve_target_session_date(
         raise DailyOperationError("Session date must use YYYY-MM-DD format.") from error
 
 
+def read_lock_pid(
+    lock_path: Path,
+) -> int:
+    try:
+        value = lock_path.read_text().strip()
+        pid = int(value)
+    except (OSError, ValueError) as error:
+        raise DailyOperationError(
+            "The prospective paper operation lock is malformed and requires manual review."
+        ) from error
+
+    if pid <= 0:
+        raise DailyOperationError(
+            "The prospective paper operation lock contains an "
+            "invalid process identifier and requires manual review."
+        )
+
+    return pid
+
+
+def process_is_running(
+    pid: int,
+) -> bool:
+    try:
+        os.kill(
+            pid,
+            0,
+        )
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+    return True
+
+
+def remove_owned_lock(
+    lock_path: Path,
+    *,
+    owner_pid: int,
+) -> None:
+    try:
+        current_pid = read_lock_pid(
+            lock_path,
+        )
+    except DailyOperationError:
+        return
+    except FileNotFoundError:
+        return
+
+    if current_pid == owner_pid:
+        lock_path.unlink(
+            missing_ok=True,
+        )
+
+
 @contextmanager
 def operation_lock(
     lock_path: Path = LOCK_PATH,
@@ -47,31 +103,60 @@ def operation_lock(
         exist_ok=True,
     )
 
-    try:
-        descriptor = os.open(
-            lock_path,
-            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-        )
-    except FileExistsError as error:
-        raise DailyOperationError(
-            "Another prospective paper daily operation is already running."
-        ) from error
+    owner_pid = os.getpid()
+    descriptor = -1
+    acquired = False
 
-    try:
+    for attempt in range(2):
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            )
+        except FileExistsError as error:
+            existing_pid = read_lock_pid(
+                lock_path,
+            )
+
+            if process_is_running(existing_pid):
+                raise DailyOperationError(
+                    "Another prospective paper daily operation is "
+                    f"already running with process ID {existing_pid}."
+                ) from error
+
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
+
+            if attempt == 0:
+                continue
+
+            raise DailyOperationError(
+                "The stale prospective paper operation lock could not be safely recovered."
+            ) from error
+
         os.write(
             descriptor,
-            f"{os.getpid()}\n".encode(),
+            f"{owner_pid}\n".encode(),
         )
         os.close(descriptor)
         descriptor = -1
+        acquired = True
+        break
 
+    if not acquired:
+        raise DailyOperationError("The prospective paper operation lock could not be acquired.")
+
+    try:
         yield
     finally:
         if descriptor != -1:
             os.close(descriptor)
 
-        lock_path.unlink(
-            missing_ok=True,
+        remove_owned_lock(
+            lock_path,
+            owner_pid=owner_pid,
         )
 
 

@@ -331,3 +331,75 @@ def test_invalid_daily_session_date_is_rejected():
         daily.resolve_target_session_date(
             "18-07-2026",
         )
+
+
+def test_stale_operation_lock_is_recovered(
+    tmp_path,
+    monkeypatch,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+    lock_path.write_text("12345\n")
+
+    monkeypatch.setattr(
+        daily,
+        "process_is_running",
+        lambda pid: False,
+    )
+
+    with daily.operation_lock(lock_path):
+        assert lock_path.exists()
+        assert int(lock_path.read_text().strip()) == daily.os.getpid()
+
+    assert not lock_path.exists()
+
+
+def test_active_external_lock_is_not_removed(
+    tmp_path,
+    monkeypatch,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+    lock_path.write_text("12345\n")
+
+    monkeypatch.setattr(
+        daily,
+        "process_is_running",
+        lambda pid: True,
+    )
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="already running",
+    ):
+        with daily.operation_lock(lock_path):
+            pass
+
+    assert lock_path.exists()
+    assert lock_path.read_text() == "12345\n"
+
+
+def test_malformed_lock_requires_manual_review(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+    lock_path.write_text("not-a-process-id\n")
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="malformed",
+    ):
+        with daily.operation_lock(lock_path):
+            pass
+
+    assert lock_path.exists()
+
+
+def test_operation_cleanup_preserves_replacement_lock(
+    tmp_path,
+):
+    lock_path = tmp_path / "daily-operation.lock"
+
+    with daily.operation_lock(lock_path):
+        lock_path.write_text("99999\n")
+
+    assert lock_path.exists()
+    assert lock_path.read_text() == "99999\n"
