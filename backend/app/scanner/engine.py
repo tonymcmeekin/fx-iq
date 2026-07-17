@@ -6,11 +6,13 @@ from app.decision.models import (
     DecisionEvaluationResponse,
 )
 from app.market_data.models import Candle
+from app.market_data.providers.base import MarketDataProvider
 from app.scanner.models import ScannerOpportunity, ScannerResult
 from app.scanner.universe import (
     DEFAULT_MARKET_UNIVERSE,
     ScannerMarketDefinition,
 )
+from app.strategies.manager import run_strategy
 
 SCANNER_VERSION = "1.0"
 
@@ -235,6 +237,7 @@ def _to_opportunity(
 
 def scan_opportunities(
     requests: list[DecisionEvaluationRequest],
+    network_calls_made: int = 0,
 ) -> ScannerResult:
     evaluated_requests = [
         (
@@ -277,8 +280,80 @@ def scan_opportunities(
             opportunity.decision == "REJECT"
             for opportunity in opportunities
         ),
+        network_calls_made=network_calls_made,
     )
 
 
 def scan_sample_opportunities() -> ScannerResult:
     return scan_opportunities(build_sample_scan_requests())
+
+
+def _average_candle_range(candles: list[Candle]) -> float:
+    recent = candles[-20:]
+
+    average_range = sum(
+        candle.high - candle.low
+        for candle in recent
+    ) / len(recent)
+
+    if average_range <= 0:
+        raise ValueError(
+            "Scanner candles must contain a positive price range."
+        )
+
+    return average_range
+
+
+def build_provider_market_request(
+    market: ScannerMarketDefinition,
+    candles: list[Candle],
+) -> DecisionEvaluationRequest:
+    if len(candles) < 21:
+        raise ValueError(
+            f"{market.symbol} {market.timeframe} returned fewer "
+            "than 21 completed candles."
+        )
+
+    entry_price = candles[-1].close
+    price_range = _average_candle_range(candles)
+
+    signal = run_strategy(
+        strategy_name="atr_breakout",
+        candles=candles,
+    )
+
+    if signal.direction == "SELL":
+        stop_loss = entry_price + price_range * 2
+        take_profit = entry_price - price_range * 4
+    else:
+        stop_loss = entry_price - price_range * 2
+        take_profit = entry_price + price_range * 4
+
+    return DecisionEvaluationRequest(
+        strategy_name="atr_breakout",
+        candles=candles,
+        entry_price=entry_price,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        base_risk_percent=0.5,
+        minimum_risk_reward=1.5,
+        minimum_regime_confidence=0.6,
+    )
+
+
+def build_provider_scan_requests(
+    provider: MarketDataProvider,
+    universe: tuple[ScannerMarketDefinition, ...],
+    candle_count: int = 100,
+) -> list[DecisionEvaluationRequest]:
+    return [
+        build_provider_market_request(
+            market=market,
+            candles=provider.get_candles(
+                symbol=market.symbol,
+                timeframe=market.timeframe,
+                count=candle_count,
+            ),
+        )
+        for market in universe
+    ]

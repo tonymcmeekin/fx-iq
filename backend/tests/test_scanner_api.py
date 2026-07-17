@@ -76,3 +76,39 @@ def test_scanner_opportunities_are_decision_ranked():
     ]
 
     assert actual_priorities == sorted(actual_priorities)
+
+
+def test_scanner_defaults_to_offline_synthetic_source():
+    response = client.get("/scanner/opportunities")
+
+    assert response.status_code == 200
+    assert response.json()["network_calls_made"] == 0
+
+
+def test_oanda_scanner_requires_explicit_token(monkeypatch):
+    monkeypatch.delenv("OANDA_API_TOKEN", raising=False)
+
+    response = client.get(
+        "/scanner/opportunities",
+        params={"source": "oanda"},
+    )
+
+    assert response.status_code == 503
+
+    detail = response.json()["detail"]
+
+    assert detail["status"] == "MARKET_DATA_UNAVAILABLE"
+    assert detail["source"] == "oanda"
+    assert detail["paper_trading_only"] is True
+    assert detail["live_trading_allowed"] is False
+    assert detail["broker_orders_submitted"] == 0
+    assert detail["ledger_writes_performed"] == 0
+
+
+def test_scanner_rejects_unknown_market_data_source():
+    response = client.get(
+        "/scanner/opportunities",
+        params={"source": "live"},
+    )
+
+    assert response.status_code == 422
