@@ -12,3 +12,7 @@ backend/data/oanda_*.csv
 
 # Generated research reports
 backend/*_results.txt
+
+# Python virtual environments
+backend/.venv/
+.venv/
