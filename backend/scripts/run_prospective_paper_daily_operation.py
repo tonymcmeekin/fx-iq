@@ -16,12 +16,25 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
+
+from app.paper_trading.session_receipts import (  # noqa: E402
+    SessionReceiptError,
+    write_session_receipt,
+)
+
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
 SESSION_SCRIPT = SCRIPTS_DIR / "run_prospective_paper_session.py"
 HEALTH_SCRIPT = SCRIPTS_DIR / "check_prospective_paper_health.py"
 OPERATOR_SCRIPT = SCRIPTS_DIR / "report_prospective_paper_operator_status.py"
 LOCK_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operation.lock"
+RECEIPT_DIRECTORY = PROJECT_ROOT / "paper_ledger" / "receipts"
 
 
 class DailyOperationError(RuntimeError):
@@ -521,6 +534,40 @@ def run_daily_operation(
     }
 
 
+def write_completed_session_receipt(
+    report: dict[str, Any],
+    *,
+    receipt_directory: Path = RECEIPT_DIRECTORY,
+) -> Path | None:
+    if report.get("session_executed") is not True:
+        return None
+
+    session_result = report.get("session_result")
+
+    if not isinstance(session_result, dict):
+        raise DailyOperationError("Executed session did not return a valid session result.")
+
+    try:
+        return write_session_receipt(
+            receipt_directory,
+            session_date=str(report["target_session_date"]),
+            software_commit=str(session_result["software_commit"]),
+            policy_fingerprint=str(session_result["policy_fingerprint"]),
+            runtime_health=str(report["postflight_health"]),
+            operator_status=str(report["operator_status"]),
+            evidence_gate_status=str(report["evidence_gate_status"]),
+            candidate_balance=report["candidate_balance"],
+            shadow_balance=report["shadow_balance"],
+            completed_sessions=report["completed_sessions"],
+            broker_orders_sent=report["broker_orders_sent"],
+            created_at_utc=datetime.now(UTC),
+        )
+    except (KeyError, TypeError, SessionReceiptError) as error:
+        raise DailyOperationError(
+            "The completed prospective paper session receipt could not be created safely."
+        ) from error
+
+
 def main(
     argv: Sequence[str] | None = None,
 ) -> int:
@@ -539,6 +586,14 @@ def main(
                 use_oanda_practice=arguments.use_oanda_practice,
                 session_date=arguments.session_date,
                 candle_count=arguments.candle_count,
+            )
+
+            receipt_path = write_completed_session_receipt(
+                report,
+            )
+
+            report["session_receipt_path"] = (
+                None if receipt_path is None else str(receipt_path.relative_to(PROJECT_ROOT))
             )
     except DailyOperationError as error:
         print(

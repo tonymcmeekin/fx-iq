@@ -490,3 +490,105 @@ def test_operation_cleanup_preserves_replacement_lock(
 
     stored = daily.json.loads(lock_path.read_text())
     assert stored == replacement_metadata
+
+
+def test_report_only_operation_does_not_write_receipt(
+    monkeypatch,
+):
+    def unexpected_write(*args, **kwargs):
+        raise AssertionError("Receipt writer should not run.")
+
+    monkeypatch.setattr(
+        daily,
+        "write_session_receipt",
+        unexpected_write,
+    )
+
+    assert (
+        daily.write_completed_session_receipt(
+            {
+                "session_executed": False,
+            }
+        )
+        is None
+    )
+
+
+def test_completed_session_writes_receipt(
+    tmp_path,
+    monkeypatch,
+):
+    expected_path = tmp_path / "2026-07-18.json"
+    captured = {}
+
+    def fake_write(receipt_directory, **kwargs):
+        captured["directory"] = receipt_directory
+        captured["kwargs"] = kwargs
+        return expected_path
+
+    monkeypatch.setattr(
+        daily,
+        "write_session_receipt",
+        fake_write,
+    )
+
+    result = daily.write_completed_session_receipt(
+        {
+            "session_executed": True,
+            "target_session_date": "2026-07-18",
+            "session_result": {
+                "software_commit": "50cad94",
+                "policy_fingerprint": "policy-fingerprint",
+            },
+            "postflight_health": "HEALTHY",
+            "operator_status": "OBSERVING",
+            "evidence_gate_status": "NOT_READY",
+            "candidate_balance": 10000.0,
+            "shadow_balance": 10000.0,
+            "completed_sessions": 2,
+            "broker_orders_sent": 0,
+        },
+        receipt_directory=tmp_path,
+    )
+
+    assert result == expected_path
+    assert captured["directory"] == tmp_path
+    assert captured["kwargs"]["session_date"] == "2026-07-18"
+    assert captured["kwargs"]["broker_orders_sent"] == 0
+
+
+def test_receipt_failure_fails_daily_operation(
+    tmp_path,
+    monkeypatch,
+):
+    def failed_write(*args, **kwargs):
+        raise daily.SessionReceiptError("simulated failure")
+
+    monkeypatch.setattr(
+        daily,
+        "write_session_receipt",
+        failed_write,
+    )
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="could not be created safely",
+    ):
+        daily.write_completed_session_receipt(
+            {
+                "session_executed": True,
+                "target_session_date": "2026-07-18",
+                "session_result": {
+                    "software_commit": "50cad94",
+                    "policy_fingerprint": "policy-fingerprint",
+                },
+                "postflight_health": "HEALTHY",
+                "operator_status": "OBSERVING",
+                "evidence_gate_status": "NOT_READY",
+                "candidate_balance": 10000.0,
+                "shadow_balance": 10000.0,
+                "completed_sessions": 2,
+                "broker_orders_sent": 0,
+            },
+            receipt_directory=tmp_path,
+        )
