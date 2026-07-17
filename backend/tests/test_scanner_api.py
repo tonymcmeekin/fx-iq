@@ -13,13 +13,13 @@ def test_scanner_opportunities_returns_ranked_markets():
     result = response.json()
 
     assert result["scanner_version"] == "1.0"
-    assert result["evaluated_markets"] == 5
-    assert len(result["opportunities"]) == 5
+    assert result["evaluated_markets"] == 8
+    assert len(result["opportunities"]) == 8
 
     assert [
         opportunity["rank"]
         for opportunity in result["opportunities"]
-    ] == [1, 2, 3, 4, 5]
+    ] == list(range(1, 9))
 
 
 def test_scanner_opportunities_contains_allow_result():

@@ -7,6 +7,10 @@ from app.decision.models import (
 )
 from app.market_data.models import Candle
 from app.scanner.models import ScannerOpportunity, ScannerResult
+from app.scanner.universe import (
+    DEFAULT_MARKET_UNIVERSE,
+    ScannerMarketDefinition,
+)
 
 SCANNER_VERSION = "1.0"
 
@@ -19,6 +23,7 @@ DECISION_PRIORITY = {
 
 def _build_trending_market(
     symbol: str,
+    timeframe: str,
     start_price: float,
     step: float,
     breakout_offset: float,
@@ -32,7 +37,7 @@ def _build_trending_market(
         candles.append(
             Candle(
                 symbol=symbol,
-                timeframe="H1",
+                timeframe=timeframe,
                 timestamp=start + timedelta(hours=index),
                 open=close - abs(step) * 0.35,
                 high=close + abs(step) * 0.50,
@@ -68,7 +73,7 @@ def _build_trending_market(
     candles.append(
         Candle(
             symbol=symbol,
-            timeframe="H1",
+            timeframe=timeframe,
             timestamp=start + timedelta(hours=50),
             open=open_price,
             high=high_price,
@@ -92,6 +97,7 @@ def _build_trending_market(
 
 def _build_ranging_market(
     symbol: str,
+    timeframe: str,
     centre_price: float,
     movement: float,
 ) -> DecisionEvaluationRequest:
@@ -115,7 +121,7 @@ def _build_ranging_market(
         candles.append(
             Candle(
                 symbol=symbol,
-                timeframe="H1",
+                timeframe=timeframe,
                 timestamp=start + timedelta(hours=index),
                 open=close,
                 high=close + movement * 0.5,
@@ -139,38 +145,42 @@ def _build_ranging_market(
     )
 
 
-def build_sample_scan_requests() -> list[DecisionEvaluationRequest]:
+def build_market_request(
+    market: ScannerMarketDefinition,
+) -> DecisionEvaluationRequest:
+    if market.scenario == "RANGING":
+        return _build_ranging_market(
+            symbol=market.symbol,
+            timeframe=market.timeframe,
+            centre_price=market.start_price,
+            movement=market.movement,
+        )
+
+    step = market.movement
+
+    if market.scenario == "TRENDING_DOWN":
+        step = -step
+
+    return _build_trending_market(
+        symbol=market.symbol,
+        timeframe=market.timeframe,
+        start_price=market.start_price,
+        step=step,
+        breakout_offset=market.breakout_offset,
+    )
+
+
+def build_scan_requests(
+    universe: tuple[ScannerMarketDefinition, ...],
+) -> list[DecisionEvaluationRequest]:
     return [
-        _build_trending_market(
-            symbol="EUR_USD",
-            start_price=1.1000,
-            step=0.0006,
-            breakout_offset=0.0010,
-        ),
-        _build_trending_market(
-            symbol="GBP_USD",
-            start_price=1.2500,
-            step=0.00045,
-            breakout_offset=0.0009,
-        ),
-        _build_trending_market(
-            symbol="USD_JPY",
-            start_price=154.000,
-            step=-0.045,
-            breakout_offset=0.090,
-        ),
-        _build_trending_market(
-            symbol="AUD_USD",
-            start_price=0.6600,
-            step=0.00022,
-            breakout_offset=0.0007,
-        ),
-        _build_ranging_market(
-            symbol="EUR_GBP",
-            centre_price=0.8600,
-            movement=0.00025,
-        ),
+        build_market_request(market)
+        for market in universe
     ]
+
+
+def build_sample_scan_requests() -> list[DecisionEvaluationRequest]:
+    return build_scan_requests(DEFAULT_MARKET_UNIVERSE)
 
 
 def _sort_key(

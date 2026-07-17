@@ -9,8 +9,8 @@ from app.scanner.engine import (
 def test_sample_scanner_evaluates_multiple_markets():
     result = scan_sample_opportunities()
 
-    assert result.evaluated_markets == 5
-    assert len(result.opportunities) == 5
+    assert result.evaluated_markets == 8
+    assert len(result.opportunities) == 8
     assert (
         result.allow_count
         + result.watch_count
@@ -55,7 +55,7 @@ def test_sample_scanner_assigns_sequential_ranks():
     assert [
         opportunity.rank
         for opportunity in result.opportunities
-    ] == [1, 2, 3, 4, 5]
+    ] == list(range(1, 9))
 
 
 def test_sample_scanner_is_read_only():
@@ -78,7 +78,7 @@ def test_sample_scanner_is_read_only():
 def test_scanner_uses_existing_decision_requests():
     requests = build_sample_scan_requests()
 
-    assert len(requests) == 5
+    assert len(requests) == 8
     assert all(
         isinstance(request, DecisionEvaluationRequest)
         for request in requests
