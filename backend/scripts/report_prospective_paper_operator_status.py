@@ -20,6 +20,9 @@ from scripts.report_prospective_paper_performance import (  # noqa: E402
     DEFAULT_STATE_PATH,
     build_performance_report,
 )
+from scripts.report_prospective_paper_rolling_analytics import (  # noqa: E402
+    build_rolling_analytics_report,
+)
 
 
 class OperatorStatusError(RuntimeError):
@@ -32,6 +35,7 @@ def build_operator_status(
     state_path: Path = DEFAULT_STATE_PATH,
     health_report: dict[str, Any] | None = None,
     performance_report: dict[str, Any] | None = None,
+    rolling_analytics_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     resolved_health = health_report if health_report is not None else perform_health_check()
 
@@ -44,9 +48,20 @@ def build_operator_status(
         )
     )
 
+    resolved_rolling = (
+        rolling_analytics_report
+        if rolling_analytics_report is not None
+        else build_rolling_analytics_report(
+            ledger_path=ledger_path,
+            state_path=state_path,
+        )
+    )
+
     runtime_health = resolved_health.get("status")
 
     performance_status = resolved_performance.get("status")
+
+    rolling_analytics_status = resolved_rolling.get("status")
 
     blocking_issues: list[str] = []
     warnings: list[str] = []
@@ -65,9 +80,17 @@ def build_operator_status(
         )
     )
 
+    rolling_broker_orders = int(
+        resolved_rolling.get(
+            "broker_orders_sent",
+            0,
+        )
+    )
+
     broker_orders_sent = max(
         health_broker_orders,
         performance_broker_orders,
+        rolling_broker_orders,
     )
 
     if runtime_health != "HEALTHY":
@@ -156,13 +179,63 @@ def build_operator_status(
     if actionable_signals == 0:
         warnings.append("No actionable BUY or SELL signals have yet been recorded.")
 
+    rolling_completed_sessions = int(
+        resolved_rolling.get(
+            "completed_sessions",
+            0,
+        )
+    )
+
+    rolling_positions_closed = int(
+        resolved_rolling.get(
+            "positions_closed",
+            0,
+        )
+    )
+
+    if rolling_completed_sessions != completed_sessions:
+        blocking_issues.append(
+            "Rolling analytics completed-session count does not match the performance report."
+        )
+
+    if rolling_positions_closed != positions_closed:
+        blocking_issues.append(
+            "Rolling analytics closed-position count does not match the performance report."
+        )
+
+    rolling_evidence_ready = (
+        rolling_analytics_status == "SUFFICIENT_DATA"
+        and rolling_completed_sessions >= minimum_sessions
+        and rolling_positions_closed >= minimum_closed_positions
+    )
+
+    candidate_expectancy = resolved_rolling.get("candidate_expectancy_amount")
+
+    candidate_profit_factor = resolved_rolling.get("candidate_profit_factor")
+
+    candidate_win_rate = resolved_rolling.get("candidate_win_rate_percent")
+
+    if positions_closed > 0:
+        if candidate_expectancy is None:
+            warnings.append(
+                "Candidate trade expectancy is not available from the recorded close events."
+            )
+
+        if candidate_profit_factor is None:
+            warnings.append(
+                "Candidate profit factor is not yet available from the recorded evidence."
+            )
+
+        if candidate_win_rate is None:
+            warnings.append("Candidate win rate is not yet available from the recorded evidence.")
+
     safe_to_continue = (
         not blocking_issues and runtime_health == "HEALTHY" and broker_orders_sent == 0
     )
 
     if not safe_to_continue:
         status = "BLOCKED"
-    elif performance_status == "SUFFICIENT_DATA":
+    elif performance_status == "SUFFICIENT_DATA" and rolling_evidence_ready:
         status = "EVIDENCE_REVIEW_REQUIRED"
     else:
         status = "OBSERVING"
@@ -171,6 +244,8 @@ def build_operator_status(
         "status": status,
         "runtime_health": runtime_health,
         "performance_status": (performance_status),
+        "rolling_analytics_status": (rolling_analytics_status),
+        "rolling_evidence_ready": (rolling_evidence_ready),
         "safe_to_continue_paper_observation": (safe_to_continue),
         "safe_for_live_trading": False,
         "live_trading_decision": ("PROHIBITED_BY_REPORT"),
@@ -197,6 +272,38 @@ def build_operator_status(
         "candidate_return_percent": (resolved_performance.get("candidate_return_percent")),
         "shadow_balance": (resolved_performance.get("shadow_balance")),
         "shadow_return_percent": (resolved_performance.get("shadow_return_percent")),
+        "candidate_max_drawdown_percent": (resolved_rolling.get("candidate_max_drawdown_percent")),
+        "shadow_max_drawdown_percent": (resolved_rolling.get("shadow_max_drawdown_percent")),
+        "candidate_expectancy_amount": (candidate_expectancy),
+        "candidate_profit_factor": (candidate_profit_factor),
+        "candidate_win_rate_percent": (candidate_win_rate),
+        "candidate_average_trade_return_percent": (
+            resolved_rolling.get("candidate_average_trade_return_percent")
+        ),
+        "profitable_sessions": int(
+            resolved_rolling.get(
+                "profitable_sessions",
+                0,
+            )
+        ),
+        "losing_sessions": int(
+            resolved_rolling.get(
+                "losing_sessions",
+                0,
+            )
+        ),
+        "flat_sessions": int(
+            resolved_rolling.get(
+                "flat_sessions",
+                0,
+            )
+        ),
+        "rolling_5_session_candidate_return_percent": (
+            resolved_rolling.get("rolling_5_session_candidate_return_percent")
+        ),
+        "rolling_20_session_candidate_return_percent": (
+            resolved_rolling.get("rolling_20_session_candidate_return_percent")
+        ),
         "last_completed_session_date": (resolved_performance.get("last_completed_session_date")),
         "ledger_events": int(
             resolved_performance.get(
