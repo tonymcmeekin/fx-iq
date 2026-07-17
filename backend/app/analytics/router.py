@@ -10,6 +10,13 @@ from app.analytics.attribution_reporting import (
     AttributionReportError,
     perform_report,
 )
+from app.analytics.models import (
+    AnalyticsErrorResponse,
+    AnalyticsOverviewResponse,
+    OperatorStatusResponse,
+    ProspectivePaperHealthResponse,
+    StrategyAttributionResponse,
+)
 from app.analytics.operator_status_reporting import (
     OperatorStatusReportError,
 )
@@ -35,7 +42,11 @@ router = APIRouter(
 )
 
 
-@router.get("/strategy-attribution")
+@router.get(
+    "/strategy-attribution",
+    response_model=StrategyAttributionResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
 def get_strategy_attribution() -> dict[str, Any]:
     """
     Return attribution derived from the verified paper ledger.
@@ -58,7 +69,11 @@ def get_strategy_attribution() -> dict[str, Any]:
         ) from error
 
 
-@router.get("/prospective-paper-health")
+@router.get(
+    "/prospective-paper-health",
+    response_model=ProspectivePaperHealthResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
 def get_prospective_paper_health() -> dict[str, Any]:
     """
     Return the verified prospective paper runtime health report.
@@ -83,7 +98,11 @@ def get_prospective_paper_health() -> dict[str, Any]:
         ) from error
 
 
-@router.get("/overview")
+@router.get(
+    "/overview",
+    response_model=AnalyticsOverviewResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
 def get_analytics_overview() -> dict[str, Any]:
     """
     Return one verified operator-facing analytics overview.
@@ -108,7 +127,11 @@ def get_analytics_overview() -> dict[str, Any]:
         ) from error
 
 
-@router.get("/operator-status")
+@router.get(
+    "/operator-status",
+    response_model=OperatorStatusResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
 def get_operator_status() -> dict[str, Any]:
     """
     Return the verified prospective paper operator-status report.

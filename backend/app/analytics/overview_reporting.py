@@ -74,6 +74,28 @@ def perform_report() -> dict[str, Any]:
         health = perform_health_report()
         attribution = perform_attribution_report()
         operator_status = perform_operator_status_report()
+
+        health = {
+            **health,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+        }
+        attribution = {
+            **attribution,
+            "ledger_writes_performed": 0,
+            "broker_orders_submitted": 0,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+        }
+        operator_status = {
+            **operator_status,
+            "network_calls_made": 0,
+            "files_changed": 0,
+            "ledger_writes_performed": 0,
+            "broker_orders_submitted": 0,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+        }
     except (
         AttributionReportError,
         OperatorStatusReportError,
