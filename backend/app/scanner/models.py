@@ -1,0 +1,50 @@
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from app.decision.models import DecisionEvaluationResponse
+
+ScannerDecision = Literal["ALLOW", "WATCH", "REJECT"]
+
+
+class ScannerOpportunity(BaseModel):
+    rank: int = Field(ge=1)
+    symbol: str
+    strategy_name: str
+    direction: str
+    decision: ScannerDecision
+    confidence_score: float = Field(ge=0, le=100)
+    risk_reward_ratio: float = Field(ge=0)
+    market_regime: str
+    regime_volatility: str
+    adjusted_risk_percent: float = Field(ge=0)
+    approved_for_paper_trade: bool
+    warning_count: int = Field(ge=0)
+    blocking_reason_count: int = Field(ge=0)
+    explanation: str
+
+    paper_trading_only: bool = True
+    live_trading_allowed: bool = False
+    broker_orders_submitted: int = 0
+    network_calls_made: int = 0
+    ledger_writes_performed: int = 0
+
+
+class ScannerResult(BaseModel):
+    scanner_version: str
+    opportunities: list[ScannerOpportunity]
+    evaluated_markets: int = Field(ge=0)
+    allow_count: int = Field(ge=0)
+    watch_count: int = Field(ge=0)
+    reject_count: int = Field(ge=0)
+
+    paper_trading_only: bool = True
+    live_trading_allowed: bool = False
+    broker_orders_submitted: int = 0
+    network_calls_made: int = 0
+    ledger_writes_performed: int = 0
+
+
+class RankedDecision(BaseModel):
+    evaluation: DecisionEvaluationResponse
+    decision_priority: int
