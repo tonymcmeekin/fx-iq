@@ -37,6 +37,8 @@ export interface ReadinessExplanationResponse {
 
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
+export type ScannerSource = "synthetic" | "oanda";
+
 export interface DecisionComponentScores {
   signal_quality: number;
   trend_alignment: number;

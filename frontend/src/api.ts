@@ -4,6 +4,7 @@ import type {
   ReadinessExplanationResponse,
   ReadinessResponse,
   ScannerResult,
+  ScannerSource,
 } from "./types";
 
 interface CandlePayload {
@@ -113,7 +114,9 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
   );
 }
 
-export async function fetchDashboardData(): Promise<DashboardData> {
+export async function fetchDashboardData(
+  scannerSource: ScannerSource = "synthetic",
+): Promise<DashboardData> {
   const [readiness, explanation, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
@@ -121,7 +124,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
         "/analytics/readiness-explanation",
       ),
       fetchDecisionEvaluation(),
-      fetchScannerOpportunities(),
+      fetchScannerOpportunities(scannerSource),
     ]);
 
   return {
@@ -133,6 +136,12 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 }
 
 
-export async function fetchScannerOpportunities(): Promise<ScannerResult> {
-  return requestJson<ScannerResult>("/scanner/opportunities");
+export async function fetchScannerOpportunities(
+  source: ScannerSource = "synthetic",
+): Promise<ScannerResult> {
+  const query = source === "oanda" ? "?source=oanda" : "";
+
+  return requestJson<ScannerResult>(
+    `/scanner/opportunities${query}`,
+  );
 }

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { fetchDashboardData } from "./api";
+import {
+  fetchDashboardData,
+  fetchScannerOpportunities,
+} from "./api";
 import { MarketScanner } from "./components/MarketScanner";
 import type {
   CountProgress,
   DashboardData,
   DecisionClassification,
   DecisionComponentScores,
+  ScannerSource,
 } from "./types";
 
 type ViewState =
@@ -144,6 +148,12 @@ function App() {
   const [state, setState] = useState<ViewState>({
     status: "loading",
   });
+  const [scannerSource, setScannerSource] =
+    useState<ScannerSource>("synthetic");
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(
+    null,
+  );
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -178,6 +188,48 @@ function App() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  const changeScannerSource = useCallback(
+    async (source: ScannerSource) => {
+      if (source === scannerSource) {
+        return;
+      }
+
+      setScannerSource(source);
+      setScannerLoading(true);
+      setScannerError(null);
+
+      try {
+        const scanner = await fetchScannerOpportunities(source);
+
+        setState((current) => {
+          if (
+            current.status !== "ready" &&
+            current.status !== "refreshing"
+          ) {
+            return current;
+          }
+
+          return {
+            status: "ready",
+            data: {
+              ...current.data,
+              scanner,
+            },
+          };
+        });
+      } catch (error: unknown) {
+        setScannerError(
+          error instanceof Error
+            ? error.message
+            : "Unknown scanner error.",
+        );
+      } finally {
+        setScannerLoading(false);
+      }
+    },
+    [scannerSource],
+  );
 
   if (state.status === "loading") {
     return (
@@ -528,7 +580,15 @@ function App() {
         </div>
       </section>
 
-      <MarketScanner scanner={scanner} />
+      <MarketScanner
+        scanner={scanner}
+        source={scannerSource}
+        loading={scannerLoading}
+        error={scannerError}
+        onSourceChange={(source) =>
+          void changeScannerSource(source)
+        }
+      />
 
       <section className="progress-grid">
         <ProgressPanel

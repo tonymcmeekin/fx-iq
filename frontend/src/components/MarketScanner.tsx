@@ -4,6 +4,7 @@ import type {
   DecisionClassification,
   ScannerOpportunity,
   ScannerResult,
+  ScannerSource,
 } from "../types";
 
 type DecisionFilter = "ALL" | DecisionClassification;
@@ -11,6 +12,10 @@ type TimeframeFilter = "ALL" | string;
 
 interface MarketScannerProps {
   scanner: ScannerResult;
+  source: ScannerSource;
+  loading: boolean;
+  error: string | null;
+  onSourceChange: (source: ScannerSource) => void;
 }
 
 function formatLabel(value: string): string {
@@ -49,6 +54,10 @@ function opportunityClass(
 
 export function MarketScanner({
   scanner,
+  source,
+  loading,
+  error,
+  onSourceChange,
 }: MarketScannerProps) {
   const [decisionFilter, setDecisionFilter] =
     useState<DecisionFilter>("ALL");
@@ -109,28 +118,89 @@ export function MarketScanner({
           </p>
         </div>
 
-        <div className="scanner-summary">
-          <div>
-            <span>Evaluated</span>
-            <strong>{scanner.evaluated_markets}</strong>
+        <div className="scanner-heading-actions">
+          <div
+            className="source-selector"
+            role="group"
+            aria-label="Scanner market-data source"
+          >
+            <button
+              className={
+                source === "synthetic"
+                  ? "source-selector__button source-selector__button--active"
+                  : "source-selector__button"
+              }
+              type="button"
+              disabled={loading}
+              onClick={() => onSourceChange("synthetic")}
+            >
+              Synthetic
+            </button>
+
+            <button
+              className={
+                source === "oanda"
+                  ? "source-selector__button source-selector__button--active"
+                  : "source-selector__button"
+              }
+              type="button"
+              disabled={loading}
+              onClick={() => onSourceChange("oanda")}
+            >
+              OANDA Practice
+            </button>
           </div>
 
-          <div>
-            <span>Allow</span>
-            <strong>{scanner.allow_count}</strong>
-          </div>
+          <span
+            className={
+              source === "oanda"
+                ? "badge badge--positive"
+                : "badge badge--neutral"
+            }
+          >
+            {loading
+              ? "Loading source"
+              : source === "oanda"
+                ? "OANDA practice market data"
+                : "Synthetic demo data"}
+          </span>
 
-          <div>
-            <span>Watch</span>
-            <strong>{scanner.watch_count}</strong>
-          </div>
+          <div className="scanner-summary">
+            <div>
+              <span>Evaluated</span>
+              <strong>{scanner.evaluated_markets}</strong>
+            </div>
 
-          <div>
-            <span>Reject</span>
-            <strong>{scanner.reject_count}</strong>
+            <div>
+              <span>Allow</span>
+              <strong>{scanner.allow_count}</strong>
+            </div>
+
+            <div>
+              <span>Watch</span>
+              <strong>{scanner.watch_count}</strong>
+            </div>
+
+            <div>
+              <span>Reject</span>
+              <strong>{scanner.reject_count}</strong>
+            </div>
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="scanner-source-error" role="alert">
+          <strong>Scanner source unavailable</strong>
+          <span>{error}</span>
+          {source === "oanda" && (
+            <small>
+              Configure OANDA_API_TOKEN in the backend environment.
+              Never place the token in the frontend.
+            </small>
+          )}
+        </div>
+      )}
 
       <div className="scanner-filters">
         <label>
