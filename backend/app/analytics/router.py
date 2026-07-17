@@ -13,6 +13,7 @@ from app.analytics.attribution_reporting import (
 from app.analytics.models import (
     AnalyticsErrorResponse,
     AnalyticsOverviewResponse,
+    AnalyticsReadinessExplanationResponse,
     AnalyticsReadinessResponse,
     OperatorStatusResponse,
     ProspectivePaperHealthResponse,
@@ -35,6 +36,10 @@ from app.analytics.prospective_health_reporting import (
 )
 from app.analytics.prospective_health_reporting import (
     perform_report as perform_prospective_health_report,
+)
+from app.analytics.readiness_explanation_reporting import (
+    ReadinessExplanationError,
+    build_readiness_explanation,
 )
 from app.analytics.readiness_reporting import (
     ReadinessReportError,
@@ -172,6 +177,46 @@ def readiness() -> dict[str, Any]:
     try:
         report = build_readiness_report()
     except ReadinessReportError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": (False),
+            },
+        ) from error
+
+    return {
+        **report,
+        "live_trading_allowed": False,
+        "network_calls_made": 0,
+        "files_changed": 0,
+        "ledger_writes_performed": 0,
+        "broker_orders_submitted": 0,
+        "safe_for_live_trading": False,
+        "protocol_live_trading_permitted": False,
+    }
+
+
+@router.get(
+    "/readiness-explanation",
+    response_model=(AnalyticsReadinessExplanationResponse),
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def readiness_explanation() -> dict[str, Any]:
+    """Return a deterministic readiness briefing."""
+
+    try:
+        report = build_readiness_explanation()
+    except (
+        ReadinessExplanationError,
+        ReadinessReportError,
+    ) as error:
         raise HTTPException(
             status_code=409,
             detail={

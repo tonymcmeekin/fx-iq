@@ -232,3 +232,23 @@ class AnalyticsReadinessResponse(AnalyticsSafetyResponse):
     next_actions: list[str] = Field(default_factory=list)
     paper_observation_allowed: bool = False
     live_trading_allowed: Literal[False] = False
+
+
+class AnalyticsReadinessExplanationResponse(AnalyticsSafetyResponse):
+    """Deterministic operator readiness briefing."""
+
+    schema_version: int = 1
+    status: str
+    current_stage: str
+    headline: str
+    briefing: str
+    status_summary: str
+    requirement_summary: str
+    evidence_summary: str
+    progress_summary: list[str] = Field(default_factory=list)
+    blocking_issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    safety_statement: str
+    paper_observation_allowed: bool = False
+    live_trading_allowed: Literal[False] = False
