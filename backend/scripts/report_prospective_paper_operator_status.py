@@ -15,6 +15,9 @@ if str(BACKEND_DIRECTORY) not in sys.path:
 from scripts.check_prospective_paper_health import (  # noqa: E402
     perform_health_check,
 )
+from scripts.report_prospective_paper_evidence_gate import (  # noqa: E402
+    build_evidence_gate_report,
+)
 from scripts.report_prospective_paper_performance import (  # noqa: E402
     DEFAULT_LEDGER_PATH,
     DEFAULT_STATE_PATH,
@@ -240,7 +243,7 @@ def build_operator_status(
     else:
         status = "OBSERVING"
 
-    return {
+    report = {
         "status": status,
         "runtime_health": runtime_health,
         "performance_status": (performance_status),
@@ -315,6 +318,55 @@ def build_operator_status(
         "network_calls_made": 0,
         "files_changed": 0,
     }
+
+    evidence_gate = build_evidence_gate_report(
+        ledger_path=ledger_path,
+        state_path=state_path,
+        operator_report=report,
+        rolling_analytics_report=resolved_rolling,
+    )
+
+    report.update(
+        {
+            "evidence_gate_status": evidence_gate.get("evidence_gate_status"),
+            "protocol_assessment_date": evidence_gate.get("assessment_date"),
+            "first_eligible_market_date": evidence_gate.get("first_eligible_market_date"),
+            "earliest_eligible_assessment_date": evidence_gate.get(
+                "earliest_eligible_assessment_date"
+            ),
+            "elapsed_calendar_days": evidence_gate.get("elapsed_calendar_days"),
+            "minimum_calendar_days_required": evidence_gate.get("minimum_calendar_days_required"),
+            "minimum_closed_trades_required": evidence_gate.get("minimum_closed_trades_required"),
+            "calendar_days_gate": evidence_gate.get("calendar_days_gate"),
+            "closed_trades_gate": evidence_gate.get("closed_trades_gate"),
+            "protocol_sample_size_gate": evidence_gate.get("sample_size_gate"),
+            "protocol_candidate_return_gate": evidence_gate.get("candidate_return_gate"),
+            "protocol_return_exceeds_shadow_gate": evidence_gate.get("return_exceeds_shadow_gate"),
+            "protocol_drawdown_gate": evidence_gate.get("drawdown_gate"),
+            "protocol_profit_factor_gate": evidence_gate.get("profit_factor_gate"),
+            "protocol_positive_markets_gate": evidence_gate.get("positive_markets_gate"),
+            "protocol_runtime_integrity_gate": evidence_gate.get("runtime_integrity_gate"),
+            "protocol_failed_criteria": evidence_gate.get(
+                "failed_criteria",
+                [],
+            ),
+            "protocol_unevaluable_criteria": evidence_gate.get(
+                "unevaluable_criteria",
+                [],
+            ),
+            "protocol_immediate_stop_reasons": evidence_gate.get(
+                "immediate_stop_reasons",
+                [],
+            ),
+            "protocol_test_passed": evidence_gate.get(
+                "protocol_test_passed",
+                False,
+            ),
+            "protocol_live_trading_permitted": False,
+        }
+    )
+
+    return report
 
 
 def build_parser() -> argparse.ArgumentParser:

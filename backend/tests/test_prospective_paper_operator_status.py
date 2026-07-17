@@ -301,3 +301,44 @@ def test_available_rolling_metrics_are_exposed():
     assert result["candidate_win_rate_percent"] == 55.0
 
     assert result["rolling_evidence_ready"] is True
+
+
+def test_operator_includes_formal_protocol_evidence_summary():
+    result = operator_status.build_operator_status(
+        health_report=healthy_report(),
+        performance_report=performance_report(),
+        rolling_analytics_report=rolling_report(),
+    )
+
+    assert result["evidence_gate_status"] == "NOT_READY"
+    assert result["minimum_calendar_days_required"] == 365
+    assert result["minimum_closed_trades_required"] == 50
+    assert result["protocol_sample_size_gate"] is False
+    assert result["protocol_test_passed"] is False
+    assert result["protocol_live_trading_permitted"] is False
+
+
+def test_operator_protocol_gate_remains_separate_from_observation_gate():
+    result = operator_status.build_operator_status(
+        health_report=healthy_report(),
+        performance_report=performance_report(
+            status="SUFFICIENT_DATA",
+            completed_sessions=20,
+            positions_closed=10,
+            actionable_signals=12,
+        ),
+        rolling_analytics_report=rolling_report(
+            status="SUFFICIENT_DATA",
+            completed_sessions=20,
+            positions_closed=10,
+            candidate_expectancy_amount=25.0,
+            candidate_profit_factor=1.5,
+            candidate_win_rate_percent=55.0,
+        ),
+    )
+
+    assert result["status"] == "EVIDENCE_REVIEW_REQUIRED"
+    assert result["rolling_evidence_ready"] is True
+    assert result["protocol_sample_size_gate"] is False
+    assert result["protocol_test_passed"] is False
+    assert result["safe_for_live_trading"] is False

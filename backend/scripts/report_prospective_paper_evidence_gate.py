@@ -13,9 +13,6 @@ if str(BACKEND_DIRECTORY) not in sys.path:
         str(BACKEND_DIRECTORY),
     )
 
-from scripts.report_prospective_paper_operator_status import (  # noqa: E402
-    build_operator_status,
-)
 from scripts.report_prospective_paper_performance import (  # noqa: E402
     DEFAULT_LEDGER_PATH,
     DEFAULT_STATE_PATH,
@@ -137,14 +134,17 @@ def build_evidence_gate_report(
 ) -> dict[str, Any]:
     resolved_protocol = protocol if protocol is not None else load_protocol(protocol_path)
 
-    resolved_operator = (
-        operator_report
-        if operator_report is not None
-        else build_operator_status(
+    if operator_report is not None:
+        resolved_operator = operator_report
+    else:
+        from scripts.report_prospective_paper_operator_status import (
+            build_operator_status,
+        )
+
+        resolved_operator = build_operator_status(
             ledger_path=ledger_path,
             state_path=state_path,
         )
-    )
 
     resolved_rolling = (
         rolling_analytics_report
