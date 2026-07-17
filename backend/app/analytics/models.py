@@ -189,3 +189,46 @@ class AnalyticsErrorResponse(AnalyticsSafetyResponse):
 
     status: str
     error: str
+
+
+class ReadinessCountProgress(AnalyticsResponseModel):
+    """Progress toward a count-based protocol threshold."""
+
+    current: int = Field(ge=0)
+    required: int = Field(ge=0)
+    remaining: int = Field(ge=0)
+    requirement_met: bool
+
+
+class ReadinessCalendarProgress(AnalyticsResponseModel):
+    """Progress toward the protocol calendar gate."""
+
+    earliest_eligible_assessment_date: str | None = None
+    requirement_met: bool
+
+
+class ReadinessProgressResponse(AnalyticsResponseModel):
+    """Protocol progress without invented scoring."""
+
+    completed_sessions: ReadinessCountProgress
+    closed_trades: ReadinessCountProgress
+    calendar_requirement: ReadinessCalendarProgress
+
+
+class AnalyticsReadinessResponse(AnalyticsSafetyResponse):
+    """Protocol-grounded operator readiness decision."""
+
+    schema_version: int = 1
+    status: str
+    current_stage: str
+    next_stage: str | None = None
+    evidence_gate_status: str | None = None
+    progress: ReadinessProgressResponse
+    blocking_issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    failed_criteria: list[str] = Field(default_factory=list)
+    unevaluable_criteria: list[str] = Field(default_factory=list)
+    immediate_stop_reasons: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    paper_observation_allowed: bool = False
+    live_trading_allowed: Literal[False] = False

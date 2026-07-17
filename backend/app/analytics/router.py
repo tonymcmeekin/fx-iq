@@ -13,6 +13,7 @@ from app.analytics.attribution_reporting import (
 from app.analytics.models import (
     AnalyticsErrorResponse,
     AnalyticsOverviewResponse,
+    AnalyticsReadinessResponse,
     OperatorStatusResponse,
     ProspectivePaperHealthResponse,
     StrategyAttributionResponse,
@@ -34,6 +35,10 @@ from app.analytics.prospective_health_reporting import (
 )
 from app.analytics.prospective_health_reporting import (
     perform_report as perform_prospective_health_report,
+)
+from app.analytics.readiness_reporting import (
+    ReadinessReportError,
+    build_readiness_report,
 )
 
 router = APIRouter(
@@ -154,3 +159,40 @@ def get_operator_status() -> dict[str, Any]:
                 "protocol_live_trading_permitted": False,
             },
         ) from error
+
+
+@router.get(
+    "/readiness",
+    response_model=AnalyticsReadinessResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def readiness() -> dict[str, Any]:
+    """Return protocol-grounded readiness status."""
+
+    try:
+        report = build_readiness_report()
+    except ReadinessReportError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": (False),
+            },
+        ) from error
+
+    return {
+        **report,
+        "live_trading_allowed": False,
+        "network_calls_made": 0,
+        "files_changed": 0,
+        "ledger_writes_performed": 0,
+        "broker_orders_submitted": 0,
+        "safe_for_live_trading": False,
+        "protocol_live_trading_permitted": False,
+    }

@@ -17,6 +17,7 @@ def test_analytics_success_responses_use_named_models():
         "/analytics/prospective-paper-health": ("ProspectivePaperHealthResponse"),
         "/analytics/operator-status": ("OperatorStatusResponse"),
         "/analytics/overview": "AnalyticsOverviewResponse",
+        "/analytics/readiness": ("AnalyticsReadinessResponse"),
     }
 
     for path, model_name in expected_models.items():
@@ -35,6 +36,7 @@ def test_analytics_conflicts_document_error_model():
         "/analytics/prospective-paper-health",
         "/analytics/operator-status",
         "/analytics/overview",
+        "/analytics/readiness",
     ):
         conflict_schema = schema["paths"][path]["get"]["responses"]["409"]["content"][
             "application/json"
@@ -49,6 +51,7 @@ def test_real_analytics_responses_match_contracts():
         "/analytics/prospective-paper-health",
         "/analytics/operator-status",
         "/analytics/overview",
+        "/analytics/readiness",
     ):
         response = client.get(path)
 
