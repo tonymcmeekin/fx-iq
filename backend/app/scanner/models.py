@@ -10,6 +10,7 @@ ScannerDecision = Literal["ALLOW", "WATCH", "REJECT"]
 class ScannerOpportunity(BaseModel):
     rank: int = Field(ge=1)
     symbol: str
+    timeframe: str
     strategy_name: str
     direction: str
     decision: ScannerDecision

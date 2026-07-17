@@ -106,3 +106,27 @@ def test_custom_universe_can_be_scanned():
     )
 
     assert result.evaluated_markets == 2
+
+
+def test_scanner_opportunities_preserve_timeframes():
+    result = scan_opportunities(
+        build_scan_requests(DEFAULT_MARKET_UNIVERSE)
+    )
+
+    returned_pairs = {
+        (
+            opportunity.symbol,
+            opportunity.timeframe,
+        )
+        for opportunity in result.opportunities
+    }
+
+    expected_pairs = {
+        (
+            market.symbol,
+            market.timeframe,
+        )
+        for market in DEFAULT_MARKET_UNIVERSE
+    }
+
+    assert returned_pairs == expected_pairs

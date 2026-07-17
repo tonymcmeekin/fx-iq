@@ -196,11 +196,13 @@ def _sort_key(
 
 def _to_opportunity(
     evaluation: DecisionEvaluationResponse,
+    request: DecisionEvaluationRequest,
     rank: int,
 ) -> ScannerOpportunity:
     return ScannerOpportunity(
         rank=rank,
         symbol=evaluation.symbol,
+        timeframe=request.candles[-1].timeframe,
         strategy_name=evaluation.strategy_name,
         direction=evaluation.direction,
         decision=evaluation.decision,
@@ -234,19 +236,26 @@ def _to_opportunity(
 def scan_opportunities(
     requests: list[DecisionEvaluationRequest],
 ) -> ScannerResult:
-    evaluations = [
-        evaluate_trade_decision(request)
+    evaluated_requests = [
+        (
+            evaluate_trade_decision(request),
+            request,
+        )
         for request in requests
     ]
 
     ranked_evaluations = sorted(
-        evaluations,
-        key=_sort_key,
+        evaluated_requests,
+        key=lambda item: _sort_key(item[0]),
     )
 
     opportunities = [
-        _to_opportunity(evaluation, rank)
-        for rank, evaluation in enumerate(
+        _to_opportunity(
+            evaluation=evaluation,
+            request=request,
+            rank=rank,
+        )
+        for rank, (evaluation, request) in enumerate(
             ranked_evaluations,
             start=1,
         )

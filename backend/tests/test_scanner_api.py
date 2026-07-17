@@ -15,6 +15,10 @@ def test_scanner_opportunities_returns_ranked_markets():
     assert result["scanner_version"] == "1.0"
     assert result["evaluated_markets"] == 8
     assert len(result["opportunities"]) == 8
+    assert all(
+        opportunity["timeframe"]
+        for opportunity in result["opportunities"]
+    )
 
     assert [
         opportunity["rank"]
