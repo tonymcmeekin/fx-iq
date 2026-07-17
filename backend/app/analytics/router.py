@@ -10,6 +10,12 @@ from app.analytics.attribution_reporting import (
     AttributionReportError,
     perform_report,
 )
+from app.analytics.prospective_health_reporting import (
+    ProspectiveHealthReportError,
+)
+from app.analytics.prospective_health_reporting import (
+    perform_report as perform_prospective_health_report,
+)
 
 router = APIRouter(
     prefix="/analytics",
@@ -36,5 +42,30 @@ def get_strategy_attribution() -> dict[str, Any]:
                 "protocol_live_trading_permitted": False,
                 "ledger_writes_performed": 0,
                 "broker_orders_submitted": 0,
+            },
+        ) from error
+
+
+@router.get("/prospective-paper-health")
+def get_prospective_paper_health() -> dict[str, Any]:
+    """
+    Return the verified prospective paper runtime health report.
+
+    No caller-supplied filesystem paths are accepted.
+    """
+    try:
+        return perform_prospective_health_report()
+    except ProspectiveHealthReportError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "UNHEALTHY",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
             },
         ) from error
