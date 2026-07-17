@@ -10,6 +10,12 @@ from app.analytics.attribution_reporting import (
 from app.analytics.attribution_reporting import (
     perform_report as perform_attribution_report,
 )
+from app.analytics.operator_status_reporting import (
+    OperatorStatusReportError,
+)
+from app.analytics.operator_status_reporting import (
+    perform_report as perform_operator_status_report,
+)
 from app.analytics.prospective_health_reporting import (
     ProspectiveHealthReportError,
 )
@@ -67,8 +73,10 @@ def perform_report() -> dict[str, Any]:
     try:
         health = perform_health_report()
         attribution = perform_attribution_report()
+        operator_status = perform_operator_status_report()
     except (
         AttributionReportError,
+        OperatorStatusReportError,
         ProspectiveHealthReportError,
         OSError,
     ) as error:
@@ -77,7 +85,7 @@ def perform_report() -> dict[str, Any]:
     overall = attribution.get("overall", {})
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": ("HEALTHY" if health.get("status") == "HEALTHY" else "UNHEALTHY"),
         "summary": {
             "candidate_balance": health.get("candidate_balance"),
@@ -98,8 +106,20 @@ def perform_report() -> dict[str, Any]:
             "last_completed_session_date": (
                 health.get("last_completed_session_date") or health.get("latest_completed_session")
             ),
+            "operator_status": operator_status.get("status"),
+            "runtime_health": operator_status.get("runtime_health"),
+            "performance_status": operator_status.get("performance_status"),
+            "rolling_analytics_status": (operator_status.get("rolling_analytics_status")),
+            "evidence_gate_status": operator_status.get("evidence_gate_status"),
+            "safe_to_continue_paper_observation": (
+                operator_status.get("safe_to_continue_paper_observation")
+            ),
+            "earliest_eligible_assessment_date": (
+                operator_status.get("earliest_eligible_assessment_date")
+            ),
         },
         "runtime": health,
+        "operator_status": operator_status,
         "strategy_attribution": attribution,
         "safety": {
             "paper_trading_only": True,

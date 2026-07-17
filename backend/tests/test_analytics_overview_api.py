@@ -69,6 +69,11 @@ def test_overview_returns_combined_verified_reports(
         "perform_attribution_report",
         attribution_report,
     )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        operator_status_report,
+    )
 
     response = client.get("/analytics/overview")
 
@@ -110,6 +115,11 @@ def test_overview_preserves_safety_boundaries(
         "perform_attribution_report",
         lambda: unsafe_attribution,
     )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        operator_status_report,
+    )
 
     response = client.get("/analytics/overview")
     result = response.json()
@@ -145,6 +155,11 @@ def test_overview_handles_no_completed_trades(
         "perform_attribution_report",
         lambda: empty_attribution,
     )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        operator_status_report,
+    )
 
     response = client.get("/analytics/overview")
 
@@ -173,6 +188,11 @@ def test_overview_returns_conflict_when_report_fails(
         overview_reporting,
         "perform_attribution_report",
         fail_attribution,
+    )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        operator_status_report,
     )
 
     response = client.get("/analytics/overview")
@@ -215,3 +235,98 @@ def test_overview_accepts_no_runtime_paths(
 
     assert response.status_code == 200
     assert response.json()["summary"]["candidate_balance"] == 10125.0
+
+
+def operator_status_report() -> dict:
+    return {
+        "status": "OBSERVING",
+        "runtime_health": "HEALTHY",
+        "performance_status": "INSUFFICIENT_DATA",
+        "rolling_analytics_status": "INSUFFICIENT_DATA",
+        "evidence_gate_status": "NOT_READY",
+        "safe_to_continue_paper_observation": True,
+        "earliest_eligible_assessment_date": "2027-07-14",
+        "safe_for_live_trading": False,
+        "protocol_live_trading_permitted": False,
+        "network_calls_made": 0,
+        "files_changed": 0,
+        "ledger_writes_performed": 0,
+        "broker_orders_submitted": 0,
+    }
+
+
+def test_overview_includes_operator_status(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_health_report",
+        health_report,
+    )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_attribution_report",
+        attribution_report,
+    )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        operator_status_report,
+    )
+
+    response = client.get("/analytics/overview")
+
+    assert response.status_code == 200
+
+    result = response.json()
+
+    assert result["operator_status"]["status"] == "OBSERVING"
+    assert result["summary"]["operator_status"] == "OBSERVING"
+    assert result["summary"]["runtime_health"] == "HEALTHY"
+    assert result["summary"]["performance_status"] == "INSUFFICIENT_DATA"
+    assert result["summary"]["rolling_analytics_status"] == "INSUFFICIENT_DATA"
+    assert result["summary"]["evidence_gate_status"] == "NOT_READY"
+    assert result["summary"]["safe_to_continue_paper_observation"] is True
+    assert result["summary"]["earliest_eligible_assessment_date"] == "2027-07-14"
+
+
+def test_overview_fails_when_operator_status_fails(
+    monkeypatch,
+):
+    from app.analytics.operator_status_reporting import (
+        OperatorStatusReportError,
+    )
+
+    def fail_operator_status():
+        raise OperatorStatusReportError("Operator report unavailable.")
+
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_health_report",
+        health_report,
+    )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_attribution_report",
+        attribution_report,
+    )
+    monkeypatch.setattr(
+        overview_reporting,
+        "perform_operator_status_report",
+        fail_operator_status,
+    )
+
+    response = client.get("/analytics/overview")
+
+    assert response.status_code == 409
+
+    detail = response.json()["detail"]
+
+    assert detail["status"] == "ERROR"
+    assert detail["error"] == "Operator report unavailable."
+    assert detail["network_calls_made"] == 0
+    assert detail["files_changed"] == 0
+    assert detail["ledger_writes_performed"] == 0
+    assert detail["broker_orders_submitted"] == 0
+    assert detail["safe_for_live_trading"] is False
+    assert detail["protocol_live_trading_permitted"] is False
