@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchDashboardData } from "./api";
+import { MarketScanner } from "./components/MarketScanner";
 import type {
   CountProgress,
   DashboardData,
@@ -208,7 +209,8 @@ function App() {
     );
   }
 
-  const { readiness, explanation, decision } = state.data;
+  const { readiness, explanation, decision, scanner } =
+    state.data;
   const calendar = readiness.progress.calendar_requirement;
   const isRefreshing = state.status === "refreshing";
 
@@ -525,6 +527,8 @@ function App() {
           </div>
         </div>
       </section>
+
+      <MarketScanner scanner={scanner} />
 
       <section className="progress-grid">
         <ProgressPanel

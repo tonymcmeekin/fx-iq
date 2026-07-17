@@ -3,6 +3,7 @@ import type {
   DecisionEvaluationResponse,
   ReadinessExplanationResponse,
   ReadinessResponse,
+  ScannerResult,
 } from "./types";
 
 interface CandlePayload {
@@ -113,17 +114,25 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const [readiness, explanation, decision] = await Promise.all([
-    requestJson<ReadinessResponse>("/analytics/readiness"),
-    requestJson<ReadinessExplanationResponse>(
-      "/analytics/readiness-explanation",
-    ),
-    fetchDecisionEvaluation(),
-  ]);
+  const [readiness, explanation, decision, scanner] =
+    await Promise.all([
+      requestJson<ReadinessResponse>("/analytics/readiness"),
+      requestJson<ReadinessExplanationResponse>(
+        "/analytics/readiness-explanation",
+      ),
+      fetchDecisionEvaluation(),
+      fetchScannerOpportunities(),
+    ]);
 
   return {
     readiness,
     explanation,
     decision,
+    scanner,
   };
+}
+
+
+export async function fetchScannerOpportunities(): Promise<ScannerResult> {
+  return requestJson<ScannerResult>("/scanner/opportunities");
 }

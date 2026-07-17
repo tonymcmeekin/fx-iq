@@ -79,4 +79,42 @@ export interface DashboardData {
   readiness: ReadinessResponse;
   explanation: ReadinessExplanationResponse;
   decision: DecisionEvaluationResponse;
+  scanner: ScannerResult;
+}
+
+export interface ScannerOpportunity {
+  rank: number;
+  symbol: string;
+  timeframe: string;
+  strategy_name: string;
+  direction: string;
+  decision: DecisionClassification;
+  confidence_score: number;
+  risk_reward_ratio: number;
+  market_regime: string;
+  regime_volatility: string;
+  adjusted_risk_percent: number;
+  approved_for_paper_trade: boolean;
+  warning_count: number;
+  blocking_reason_count: number;
+  explanation: string;
+  paper_trading_only: boolean;
+  live_trading_allowed: boolean;
+  broker_orders_submitted: number;
+  network_calls_made: number;
+  ledger_writes_performed: number;
+}
+
+export interface ScannerResult {
+  scanner_version: string;
+  opportunities: ScannerOpportunity[];
+  evaluated_markets: number;
+  allow_count: number;
+  watch_count: number;
+  reject_count: number;
+  paper_trading_only: boolean;
+  live_trading_allowed: boolean;
+  broker_orders_submitted: number;
+  network_calls_made: number;
+  ledger_writes_performed: number;
 }
