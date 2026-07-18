@@ -92,3 +92,57 @@ def test_scanner_accepts_explicit_request_list():
 
     assert result.evaluated_markets == 2
     assert len(result.opportunities) == 2
+
+
+def test_scanner_exposes_deterministic_feature_metadata():
+    result = scan_sample_opportunities()
+
+    assert result.opportunities
+
+    for opportunity in result.opportunities:
+        features = opportunity.features
+
+        assert features.candle_count == 51
+        assert features.trend_state in {
+            "TRENDING_UP",
+            "TRENDING_DOWN",
+            "RANGING",
+        }
+        assert features.volatility_state in {
+            "LOW",
+            "NORMAL",
+            "HIGH",
+        }
+        assert features.ema_alignment in {
+            "BULLISH",
+            "BEARISH",
+            "MIXED",
+        }
+        assert features.atr_percent is not None
+        assert features.rsi_14 is not None
+        assert features.range_position is not None
+        assert 0 <= features.rsi_14 <= 100
+        assert 0 <= features.range_position <= 1
+
+
+def test_feature_metadata_does_not_change_scanner_ranking():
+    first = scan_sample_opportunities()
+    second = scan_sample_opportunities()
+
+    assert [
+        (
+            opportunity.rank,
+            opportunity.symbol,
+            opportunity.decision,
+            opportunity.confidence_score,
+        )
+        for opportunity in first.opportunities
+    ] == [
+        (
+            opportunity.rank,
+            opportunity.symbol,
+            opportunity.decision,
+            opportunity.confidence_score,
+        )
+        for opportunity in second.opportunities
+    ]

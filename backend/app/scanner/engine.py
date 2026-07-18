@@ -5,9 +5,14 @@ from app.decision.models import (
     DecisionEvaluationRequest,
     DecisionEvaluationResponse,
 )
+from app.features import FeatureCandle, build_market_features
 from app.market_data.models import Candle
 from app.market_data.providers.base import MarketDataProvider
-from app.scanner.models import ScannerOpportunity, ScannerResult
+from app.scanner.models import (
+    ScannerFeatureMetadata,
+    ScannerOpportunity,
+    ScannerResult,
+)
 from app.scanner.universe import (
     DEFAULT_MARKET_UNIVERSE,
     ScannerMarketDefinition,
@@ -196,6 +201,37 @@ def _sort_key(
     )
 
 
+def _build_feature_metadata(
+    candles: list[Candle],
+) -> ScannerFeatureMetadata:
+    feature_vector = build_market_features(
+        [
+            FeatureCandle(
+                high=candle.high,
+                low=candle.low,
+                close=candle.close,
+            )
+            for candle in candles
+        ]
+    )
+
+    return ScannerFeatureMetadata(
+        candle_count=feature_vector.candle_count,
+        trend_state=feature_vector.trend_state.value,
+        volatility_state=feature_vector.volatility_state.value,
+        ema_alignment=feature_vector.ema_alignment,
+        price_change_percent=(
+            feature_vector.price_change_percent
+        ),
+        ema_20_slope_percent=(
+            feature_vector.ema_20_slope_percent
+        ),
+        atr_percent=feature_vector.atr_percent,
+        rsi_14=feature_vector.rsi_14,
+        range_position=feature_vector.range_position,
+    )
+
+
 def _to_opportunity(
     evaluation: DecisionEvaluationResponse,
     request: DecisionEvaluationRequest,
@@ -223,6 +259,7 @@ def _to_opportunity(
         warning_count=len(evaluation.warnings),
         blocking_reason_count=len(evaluation.blocking_reasons),
         explanation=evaluation.explanation,
+        features=_build_feature_metadata(request.candles),
         paper_trading_only=evaluation.paper_trading_only,
         live_trading_allowed=evaluation.live_trading_allowed,
         broker_orders_submitted=(

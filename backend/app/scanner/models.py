@@ -7,6 +7,22 @@ from app.decision.models import DecisionEvaluationResponse
 ScannerDecision = Literal["ALLOW", "WATCH", "REJECT"]
 
 
+class ScannerFeatureMetadata(BaseModel):
+    candle_count: int = Field(ge=0)
+    trend_state: str
+    volatility_state: str
+    ema_alignment: str
+    price_change_percent: float | None = None
+    ema_20_slope_percent: float | None = None
+    atr_percent: float | None = None
+    rsi_14: float | None = Field(default=None, ge=0, le=100)
+    range_position: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+    )
+
+
 class ScannerOpportunity(BaseModel):
     rank: int = Field(ge=1)
     symbol: str
@@ -23,6 +39,7 @@ class ScannerOpportunity(BaseModel):
     warning_count: int = Field(ge=0)
     blocking_reason_count: int = Field(ge=0)
     explanation: str
+    features: ScannerFeatureMetadata
 
     paper_trading_only: bool = True
     live_trading_allowed: bool = False

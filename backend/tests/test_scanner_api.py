@@ -112,3 +112,23 @@ def test_scanner_rejects_unknown_market_data_source():
     )
 
     assert response.status_code == 422
+
+
+def test_scanner_api_exposes_market_feature_metadata():
+    response = client.get("/scanner/opportunities")
+
+    assert response.status_code == 200
+
+    opportunities = response.json()["opportunities"]
+    assert opportunities
+
+    for opportunity in opportunities:
+        features = opportunity["features"]
+
+        assert features["candle_count"] == 51
+        assert features["trend_state"]
+        assert features["volatility_state"]
+        assert features["ema_alignment"]
+        assert features["atr_percent"] is not None
+        assert features["rsi_14"] is not None
+        assert features["range_position"] is not None
