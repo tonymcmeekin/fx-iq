@@ -146,3 +146,48 @@ def test_feature_metadata_does_not_change_scanner_ranking():
         )
         for opportunity in second.opportunities
     ]
+
+
+def test_scanner_exposes_setup_quality_metadata():
+    result = scan_sample_opportunities()
+
+    for opportunity in result.opportunities:
+        quality = opportunity.setup_quality
+
+        assert 0 <= quality.score <= 100
+        assert quality.label in {
+            "STRONG",
+            "GOOD",
+            "MIXED",
+            "WEAK",
+        }
+        assert quality.explanation
+        assert quality.reasons
+
+
+def test_setup_quality_does_not_control_decision_or_ranking():
+    result = scan_sample_opportunities()
+
+    expected_ranking = [
+        (
+            opportunity.rank,
+            opportunity.symbol,
+            opportunity.decision,
+            opportunity.confidence_score,
+        )
+        for opportunity in result.opportunities
+    ]
+
+    repeated = scan_sample_opportunities()
+
+    actual_ranking = [
+        (
+            opportunity.rank,
+            opportunity.symbol,
+            opportunity.decision,
+            opportunity.confidence_score,
+        )
+        for opportunity in repeated.opportunities
+    ]
+
+    assert actual_ranking == expected_ranking

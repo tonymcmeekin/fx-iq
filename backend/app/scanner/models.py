@@ -23,6 +23,13 @@ class ScannerFeatureMetadata(BaseModel):
     )
 
 
+class ScannerQualityMetadata(BaseModel):
+    score: float = Field(ge=0, le=100)
+    label: str
+    explanation: str
+    reasons: list[str]
+
+
 class ScannerOpportunity(BaseModel):
     rank: int = Field(ge=1)
     symbol: str
@@ -40,6 +47,7 @@ class ScannerOpportunity(BaseModel):
     blocking_reason_count: int = Field(ge=0)
     explanation: str
     features: ScannerFeatureMetadata
+    setup_quality: ScannerQualityMetadata
 
     paper_trading_only: bool = True
     live_trading_allowed: bool = False

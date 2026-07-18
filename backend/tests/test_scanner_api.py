@@ -132,3 +132,22 @@ def test_scanner_api_exposes_market_feature_metadata():
         assert features["atr_percent"] is not None
         assert features["rsi_14"] is not None
         assert features["range_position"] is not None
+
+
+def test_scanner_api_exposes_setup_quality():
+    response = client.get("/scanner/opportunities")
+
+    assert response.status_code == 200
+
+    for opportunity in response.json()["opportunities"]:
+        quality = opportunity["setup_quality"]
+
+        assert 0 <= quality["score"] <= 100
+        assert quality["label"] in {
+            "STRONG",
+            "GOOD",
+            "MIXED",
+            "WEAK",
+        }
+        assert quality["explanation"]
+        assert quality["reasons"]

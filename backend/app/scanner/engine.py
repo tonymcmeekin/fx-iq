@@ -5,12 +5,18 @@ from app.decision.models import (
     DecisionEvaluationRequest,
     DecisionEvaluationResponse,
 )
-from app.features import FeatureCandle, build_market_features
+from app.features import (
+    FeatureCandle,
+    MarketFeatureVector,
+    build_market_features,
+    evaluate_setup_quality,
+)
 from app.market_data.models import Candle
 from app.market_data.providers.base import MarketDataProvider
 from app.scanner.models import (
     ScannerFeatureMetadata,
     ScannerOpportunity,
+    ScannerQualityMetadata,
     ScannerResult,
 )
 from app.scanner.universe import (
@@ -201,10 +207,10 @@ def _sort_key(
     )
 
 
-def _build_feature_metadata(
+def _build_feature_vector(
     candles: list[Candle],
-) -> ScannerFeatureMetadata:
-    feature_vector = build_market_features(
+) -> MarketFeatureVector:
+    return build_market_features(
         [
             FeatureCandle(
                 high=candle.high,
@@ -215,6 +221,10 @@ def _build_feature_metadata(
         ]
     )
 
+
+def _build_feature_metadata(
+    feature_vector: MarketFeatureVector,
+) -> ScannerFeatureMetadata:
     return ScannerFeatureMetadata(
         candle_count=feature_vector.candle_count,
         trend_state=feature_vector.trend_state.value,
@@ -232,11 +242,26 @@ def _build_feature_metadata(
     )
 
 
+def _build_quality_metadata(
+    feature_vector: MarketFeatureVector,
+) -> ScannerQualityMetadata:
+    quality = evaluate_setup_quality(feature_vector)
+
+    return ScannerQualityMetadata(
+        score=quality.score,
+        label=quality.label,
+        explanation=quality.explanation,
+        reasons=list(quality.reasons),
+    )
+
+
 def _to_opportunity(
     evaluation: DecisionEvaluationResponse,
     request: DecisionEvaluationRequest,
     rank: int,
 ) -> ScannerOpportunity:
+    feature_vector = _build_feature_vector(request.candles)
+
     return ScannerOpportunity(
         rank=rank,
         symbol=evaluation.symbol,
@@ -259,7 +284,8 @@ def _to_opportunity(
         warning_count=len(evaluation.warnings),
         blocking_reason_count=len(evaluation.blocking_reasons),
         explanation=evaluation.explanation,
-        features=_build_feature_metadata(request.candles),
+        features=_build_feature_metadata(feature_vector),
+        setup_quality=_build_quality_metadata(feature_vector),
         paper_trading_only=evaluation.paper_trading_only,
         live_trading_allowed=evaluation.live_trading_allowed,
         broker_orders_submitted=(
