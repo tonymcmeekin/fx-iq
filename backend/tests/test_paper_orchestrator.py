@@ -18,7 +18,6 @@ from app.paper_trading.runtime_state import (
     read_runtime_state,
 )
 
-
 SESSION_DATE = date(
     2026,
     7,
@@ -639,3 +638,147 @@ def test_completed_session_skips_collection(
     )
 
     assert calls == 1
+
+
+def test_passing_preflight_allows_collection(
+    tmp_path,
+):
+    preflight_calls = []
+    collector_called = False
+
+    class PassingReport:
+        passed = True
+
+    def passing_preflight(**kwargs):
+        preflight_calls.append(kwargs)
+        return PassingReport()
+
+    def fake_collector(**kwargs):
+        nonlocal collector_called
+        collector_called = True
+
+        return make_candles(
+            kwargs["instrument"],
+            breakout=False,
+        )
+
+    result = run_controlled_daily_session(
+        api_token="test-token",
+        session_date=SESSION_DATE,
+        ledger_path=(
+            tmp_path / "events.jsonl"
+        ),
+        state_path=(
+            tmp_path / "state.json"
+        ),
+        journal_path=(
+            tmp_path / "transition.json"
+        ),
+        candle_store_directory=(
+            tmp_path / "candles"
+        ),
+        protocol=make_protocol(),
+        collector=fake_collector,
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        preflight_runner=passing_preflight,
+        preflight_context={
+            "account_id": "practice-account",
+        },
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert collector_called is True
+    assert preflight_calls == [
+        {
+            "account_id": "practice-account",
+        }
+    ]
+
+
+def test_failing_preflight_aborts_before_collection(
+    tmp_path,
+):
+    collector_called = False
+
+    ledger_path = (
+        tmp_path / "events.jsonl"
+    )
+    state_path = (
+        tmp_path / "state.json"
+    )
+    journal_path = (
+        tmp_path / "transition.json"
+    )
+    candle_directory = (
+        tmp_path / "candles"
+    )
+
+    class FailingReport:
+        passed = False
+
+    def failing_preflight(**kwargs):
+        assert kwargs == {
+            "reason": "test-failure",
+        }
+
+        return FailingReport()
+
+    def fake_collector(**kwargs):
+        nonlocal collector_called
+        collector_called = True
+
+        return make_candles(
+            kwargs["instrument"],
+            breakout=False,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "Paper session aborted: "
+            "preflight failed"
+        ),
+    ):
+        run_controlled_daily_session(
+            api_token="test-token",
+            session_date=SESSION_DATE,
+            ledger_path=ledger_path,
+            state_path=state_path,
+            journal_path=journal_path,
+            candle_store_directory=(
+                candle_directory
+            ),
+            protocol=make_protocol(),
+            collector=fake_collector,
+            policy_verifier=(
+                lambda: POLICY_FINGERPRINT
+            ),
+            preflight_runner=(
+                failing_preflight
+            ),
+            preflight_context={
+                "reason": "test-failure",
+            },
+            session_time_utc=SESSION_TIME,
+            software_commit="test-commit",
+        )
+
+    assert collector_called is False
+    assert ledger_path.exists() is False
+    assert journal_path.exists() is False
+    assert candle_directory.exists() is False
+
+    if state_path.exists():
+        state = read_runtime_state(
+            state_path
+        )
+
+        assert state["pending_entries"] == []
+        assert state["open_positions"] == []
+        assert state[
+            "broker_orders_submitted"
+        ] == 0

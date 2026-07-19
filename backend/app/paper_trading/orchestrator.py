@@ -30,7 +30,6 @@ from app.paper_trading.transition_journal import (
     read_transition_journal,
 )
 
-
 DEFAULT_PROTOCOL_PATH = Path(
     "research_protocols/"
     "prospective_paper_trading_protocol.json"
@@ -79,6 +78,11 @@ def run_controlled_daily_session(
         [],
         str,
     ] = verify_frozen_policy,
+    preflight_runner: Callable[
+        ...,
+        object,
+    ] | None = None,
+    preflight_context: dict | None = None,
     session_time_utc: datetime | None = None,
     software_commit: str = "UNKNOWN",
 ) -> dict:
@@ -233,6 +237,21 @@ def run_controlled_daily_session(
         raise RuntimeError(
             "Runtime state records broker orders."
         )
+
+    if preflight_runner is not None:
+        preflight_report = preflight_runner(
+            **(preflight_context or {})
+        )
+
+        if not getattr(
+            preflight_report,
+            "passed",
+            False,
+        ):
+            raise RuntimeError(
+                "Paper session aborted: "
+                "preflight failed."
+            )
 
     market_candles: dict[
         str,
