@@ -68,6 +68,7 @@ def make_candles(
     symbol="EUR_GBP",
     *,
     breakout=False,
+    count=21,
 ):
     start = datetime(
         2026,
@@ -77,16 +78,19 @@ def make_candles(
         0,
         tzinfo=UTC,
     )
+    history_start = start - timedelta(
+        days=max(count - 21, 0)
+    )
 
     candles = []
 
-    for index in range(21):
+    for index in range(count):
         candles.append(
             Candle(
                 symbol=symbol,
                 timeframe="D",
                 timestamp=(
-                    start
+                    history_start
                     + timedelta(
                         days=index
                     )
@@ -132,7 +136,15 @@ def make_candles(
             )
         )
 
-    return candles
+    candles_by_timestamp = {
+        candle.timestamp: candle
+        for candle in candles
+    }
+
+    return sorted(
+        candles_by_timestamp.values(),
+        key=lambda candle: candle.timestamp,
+    )
 
 
 def test_utc_isoformat_requires_timezone():
@@ -588,7 +600,7 @@ def test_observation_path_omitted_does_not_attempt_recording(
         ),
         session_date=SESSION_DATE,
         market_candles={
-            "EUR_GBP": make_candles(),
+            "EUR_GBP": make_candles(count=60),
         },
         protocol=make_protocol(),
         policy_verifier=(
@@ -639,7 +651,7 @@ def test_successful_observation_is_recorded(
         ),
         session_date=SESSION_DATE,
         market_candles={
-            "EUR_GBP": make_candles(),
+            "EUR_GBP": make_candles(count=60),
         },
         protocol=make_protocol(),
         policy_verifier=(
@@ -692,7 +704,7 @@ def test_duplicate_observation_is_recovery_outcome(
         ),
         session_date=SESSION_DATE,
         market_candles={
-            "EUR_GBP": make_candles(),
+            "EUR_GBP": make_candles(count=60),
         },
         protocol=make_protocol(),
         policy_verifier=(
@@ -739,7 +751,7 @@ def test_observation_failure_does_not_fail_session(
         ledger_path=ledger_path,
         session_date=SESSION_DATE,
         market_candles={
-            "EUR_GBP": make_candles(),
+            "EUR_GBP": make_candles(count=60),
         },
         protocol=make_protocol(),
         policy_verifier=(

@@ -661,13 +661,37 @@ def run_daily_evaluation(
                         ]
                     )
 
+                    observation_recorded_at_utc = session_time_utc
+                    if isinstance(
+                        observation_recorded_at_utc,
+                        str,
+                    ):
+                        observation_recorded_at_utc = (
+                            datetime.fromisoformat(
+                                observation_recorded_at_utc.replace(
+                                    "Z",
+                                    "+00:00",
+                                )
+                            )
+                        )
+
+                    if (
+                        observation_recorded_at_utc.tzinfo
+                        is None
+                    ):
+                        observation_recorded_at_utc = (
+                            observation_recorded_at_utc.replace(
+                                tzinfo=UTC
+                            )
+                        )
+
                     observation = (
                         build_trade_observation(
                             session_date=(
                                 session_date
                             ),
                             recorded_at_utc=(
-                                occurred_at
+                                observation_recorded_at_utc
                             ),
                             candles=candles,
                             signal=signal,
