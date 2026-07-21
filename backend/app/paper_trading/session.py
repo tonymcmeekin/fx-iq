@@ -3,6 +3,14 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from app.intelligence.observation_store import (
+    ObservationStoreError,
+    append_observation,
+)
+from app.intelligence.observations import (
+    PortfolioContext,
+    build_trade_observation,
+)
 from app.market_data.models import Candle
 from app.paper_trading.ledger import (
     LedgerIntegrityError,
@@ -18,7 +26,6 @@ from app.paper_trading.policy import (
 from app.strategies.atr_breakout import (
     generate_atr_breakout_signal,
 )
-
 
 DEFAULT_PROTOCOL_PATH = Path(
     "research_protocols/"
@@ -248,6 +255,7 @@ def run_daily_evaluation(
     session_time_utc: datetime | None = None,
     software_commit: str = "UNKNOWN",
     append_completion_event: bool = True,
+    observation_store_path: Path | None = None,
 ) -> dict:
     resolved_protocol = (
         protocol
@@ -380,6 +388,14 @@ def run_daily_evaluation(
 
     market_summaries = []
 
+    observation_metrics = {
+        "observations_attempted": 0,
+        "observations_recorded": 0,
+        "observation_duplicates": 0,
+        "observation_failures": 0,
+        "observation_errors": [],
+    }
+
     try:
         for market in required_markets:
             candles = market_candles[
@@ -496,9 +512,16 @@ def run_daily_evaluation(
                         latest.timestamp
                     )
                 ),
+                "strategy_name": (
+                    signal.strategy_name
+                ),
                 "direction": (
                     signal.direction
                 ),
+                "confidence": (
+                    signal.confidence
+                ),
+                "reason": signal.reason,
                 "candidate_risk_percent": (
                     None
                 ),
@@ -608,6 +631,123 @@ def run_daily_evaluation(
                 summary
             )
 
+            if observation_store_path is not None:
+                observation_metrics[
+                    "observations_attempted"
+                ] += 1
+
+                try:
+                    pending_entries_total = sum(
+                        bool(
+                            item[
+                                "pending_entry"
+                            ]
+                        )
+                        for item
+                        in market_summaries
+                    )
+
+                    portfolio_risk_percent = sum(
+                        float(
+                            item[
+                                "candidate_risk_percent"
+                            ]
+                            or 0.0
+                        )
+                        for item
+                        in market_summaries
+                        if item[
+                            "pending_entry"
+                        ]
+                    )
+
+                    observation = (
+                        build_trade_observation(
+                            session_date=(
+                                session_date
+                            ),
+                            recorded_at_utc=(
+                                occurred_at
+                            ),
+                            candles=candles,
+                            signal=signal,
+                            trade_accepted=bool(
+                                summary[
+                                    "pending_entry"
+                                ]
+                            ),
+                            decision_reason=str(
+                                summary[
+                                    "reason"
+                                ]
+                            ),
+                            portfolio_context=(
+                                PortfolioContext(
+                                    pending_entries_total=(
+                                        pending_entries_total
+                                    ),
+                                    open_positions_total=0,
+                                    correlated_positions=0,
+                                    portfolio_risk_percent=(
+                                        portfolio_risk_percent
+                                    ),
+                                )
+                            ),
+                        )
+                    )
+
+                    append_observation(
+                        observation_store_path,
+                        observation,
+                    )
+
+                    observation_metrics[
+                        "observations_recorded"
+                    ] += 1
+
+                except ObservationStoreError as error:
+                    message = str(error)
+
+                    if "duplicate" in message.lower():
+                        observation_metrics[
+                            "observation_duplicates"
+                        ] += 1
+                    else:
+                        observation_metrics[
+                            "observation_failures"
+                        ] += 1
+                        observation_metrics[
+                            "observation_errors"
+                        ].append(
+                            {
+                                "market": market,
+                                "error_type": (
+                                    type(error).__name__
+                                ),
+                                "error_message": (
+                                    message
+                                ),
+                            }
+                        )
+
+                except Exception as error:
+                    observation_metrics[
+                        "observation_failures"
+                    ] += 1
+                    observation_metrics[
+                        "observation_errors"
+                    ].append(
+                        {
+                            "market": market,
+                            "error_type": (
+                                type(error).__name__
+                            ),
+                            "error_message": (
+                                str(error)
+                            ),
+                        }
+                    )
+
         actionable_signals = sum(
             summary["direction"]
             in {"BUY", "SELL"}
@@ -634,6 +774,7 @@ def run_daily_evaluation(
             "market_summaries": (
                 market_summaries
             ),
+            **observation_metrics,
         }
 
         if append_completion_event:
@@ -709,4 +850,5 @@ def run_daily_evaluation(
         "completion_event_appended": (
             append_completion_event
         ),
+        **observation_metrics,
     }

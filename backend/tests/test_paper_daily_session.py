@@ -7,6 +7,8 @@ from datetime import (
 
 import pytest
 
+import app.paper_trading.session as session_module
+from app.intelligence.observation_store import ObservationStoreError
 from app.market_data.models import Candle
 from app.paper_trading.ledger import (
     verify_ledger,
@@ -18,7 +20,6 @@ from app.paper_trading.session import (
     session_is_completed,
     utc_isoformat,
 )
-
 
 SESSION_DATE = date(
     2026,
@@ -560,3 +561,218 @@ def test_evaluation_only_does_not_complete_session(
         ledger_path,
         SESSION_DATE,
     ) is False
+
+
+def test_observation_path_omitted_does_not_attempt_recording(
+    tmp_path,
+    monkeypatch,
+):
+    def fail_if_called(
+        *_args,
+        **_kwargs,
+    ):
+        raise AssertionError(
+            "Observation storage must not be called "
+            "when no path is supplied."
+        )
+
+    monkeypatch.setattr(
+        session_module,
+        "append_observation",
+        fail_if_called,
+    )
+
+    result = run_daily_evaluation(
+        ledger_path=(
+            tmp_path / "events.jsonl"
+        ),
+        session_date=SESSION_DATE,
+        market_candles={
+            "EUR_GBP": make_candles(),
+        },
+        protocol=make_protocol(),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["observations_attempted"] == 0
+    assert result["observations_recorded"] == 0
+    assert result["observation_duplicates"] == 0
+    assert result["observation_failures"] == 0
+    assert result["observation_errors"] == []
+
+
+def test_successful_observation_is_recorded(
+    tmp_path,
+    monkeypatch,
+):
+    captured = []
+
+    def capture_observation(
+        store_path,
+        observation,
+    ):
+        captured.append(
+            (
+                store_path,
+                observation,
+            )
+        )
+
+    monkeypatch.setattr(
+        session_module,
+        "append_observation",
+        capture_observation,
+    )
+
+    observation_path = (
+        tmp_path / "observations.jsonl"
+    )
+
+    result = run_daily_evaluation(
+        ledger_path=(
+            tmp_path / "events.jsonl"
+        ),
+        session_date=SESSION_DATE,
+        market_candles={
+            "EUR_GBP": make_candles(),
+        },
+        protocol=make_protocol(),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+        observation_store_path=(
+            observation_path
+        ),
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["observations_attempted"] == 1
+    assert result["observations_recorded"] == 1
+    assert result["observation_duplicates"] == 0
+    assert result["observation_failures"] == 0
+    assert result["observation_errors"] == []
+
+    assert len(captured) == 1
+
+    captured_path, observation = captured[0]
+
+    assert captured_path == observation_path
+    assert observation.instrument == "EUR_GBP"
+
+
+def test_duplicate_observation_is_recovery_outcome(
+    tmp_path,
+    monkeypatch,
+):
+    def raise_duplicate(
+        _store_path,
+        _observation,
+    ):
+        raise ObservationStoreError(
+            "Duplicate observation ID: "
+            "test-observation"
+        )
+
+    monkeypatch.setattr(
+        session_module,
+        "append_observation",
+        raise_duplicate,
+    )
+
+    result = run_daily_evaluation(
+        ledger_path=(
+            tmp_path / "events.jsonl"
+        ),
+        session_date=SESSION_DATE,
+        market_candles={
+            "EUR_GBP": make_candles(),
+        },
+        protocol=make_protocol(),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+        observation_store_path=(
+            tmp_path / "observations.jsonl"
+        ),
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["observations_attempted"] == 1
+    assert result["observations_recorded"] == 0
+    assert result["observation_duplicates"] == 1
+    assert result["observation_failures"] == 0
+    assert result["observation_errors"] == []
+
+
+def test_observation_failure_does_not_fail_session(
+    tmp_path,
+    monkeypatch,
+):
+    def raise_write_failure(
+        _store_path,
+        _observation,
+    ):
+        raise OSError(
+            "Observation store unavailable"
+        )
+
+    monkeypatch.setattr(
+        session_module,
+        "append_observation",
+        raise_write_failure,
+    )
+
+    ledger_path = (
+        tmp_path / "events.jsonl"
+    )
+
+    result = run_daily_evaluation(
+        ledger_path=ledger_path,
+        session_date=SESSION_DATE,
+        market_candles={
+            "EUR_GBP": make_candles(),
+        },
+        protocol=make_protocol(),
+        policy_verifier=(
+            lambda: POLICY_FINGERPRINT
+        ),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+        observation_store_path=(
+            tmp_path / "observations.jsonl"
+        ),
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["observations_attempted"] == 1
+    assert result["observations_recorded"] == 0
+    assert result["observation_duplicates"] == 0
+    assert result["observation_failures"] == 1
+
+    assert result["observation_errors"] == [
+        {
+            "market": "EUR_GBP",
+            "error_type": "OSError",
+            "error_message": (
+                "Observation store unavailable"
+            ),
+        }
+    ]
+
+    events = verify_ledger(
+        ledger_path
+    )
+
+    assert events[-1][
+        "event_type"
+    ] == "SESSION_COMPLETED"
+
