@@ -248,10 +248,28 @@ def run_controlled_daily_session(
             "passed",
             False,
         ):
-            raise RuntimeError(
+            failed_checks = getattr(
+                preflight_report,
+                "failed_checks",
+                (),
+            )
+
+            failure_details = "; ".join(
+                f"{check.name}: {check.message}"
+                for check in failed_checks
+            )
+
+            message = (
                 "Paper session aborted: "
                 "preflight failed."
             )
+
+            if failure_details:
+                message = (
+                    f"{message} {failure_details}"
+                )
+
+            raise RuntimeError(message)
 
     market_candles: dict[
         str,

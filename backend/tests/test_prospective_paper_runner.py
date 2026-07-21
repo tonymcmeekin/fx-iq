@@ -76,6 +76,7 @@ def test_explicit_practice_gate_is_required():
             [],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             },
             **safe_dependencies(),
         )
@@ -116,6 +117,7 @@ def test_live_environment_is_rejected_before_runner():
             ],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
                 "OANDA_ENVIRONMENT": "live",
             },
             **dependencies,
@@ -141,6 +143,7 @@ def test_dirty_source_tree_is_rejected():
             ],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             },
             **dependencies,
         )
@@ -159,6 +162,7 @@ def test_invalid_candle_count_is_rejected():
             ],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             },
             **safe_dependencies(),
         )
@@ -177,6 +181,7 @@ def test_invalid_session_date_is_rejected():
             ],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             },
             **safe_dependencies(),
         )
@@ -208,6 +213,7 @@ def test_runner_uses_fixed_paths_and_practice_only():
         ],
         environment={
             "OANDA_API_TOKEN": ("secret-test-token"),
+            "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             "OANDA_ENVIRONMENT": ("practice"),
         },
         **safe_dependencies(calls=calls),
@@ -288,6 +294,7 @@ def test_nonzero_broker_order_result_is_rejected():
             ],
             environment={
                 "OANDA_API_TOKEN": ("test-token"),
+                "OANDA_ACCOUNT_ID": "101-004-39785237-001",
             },
             **dependencies,
         )
@@ -362,6 +369,7 @@ def test_runner_tests_make_no_network_calls(
         ],
         environment={
             "OANDA_API_TOKEN": ("test-token"),
+            "OANDA_ACCOUNT_ID": "101-004-39785237-001",
         },
         **safe_dependencies(calls=calls),
     )

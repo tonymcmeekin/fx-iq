@@ -23,6 +23,12 @@ from app.paper_trading.orchestrator import (  # noqa: E402
 from app.paper_trading.policy import (  # noqa: E402
     verify_frozen_policy,
 )
+from app.paper_trading.runtime_state import (  # noqa: E402
+    read_runtime_state,
+)
+from app.safety.broker_preflight import (  # noqa: E402
+    build_broker_backed_preflight,
+)
 
 PROTOCOL_PATH = BACKEND_DIRECTORY / "research_protocols" / "prospective_paper_trading_protocol.json"
 
@@ -213,6 +219,27 @@ def execute(
     if not api_token:
         raise GuardedRunnerError("OANDA_API_TOKEN is required.")
 
+    account_id = resolved_environment.get(
+        "OANDA_ACCOUNT_ID",
+        "",
+    ).strip()
+
+    if not account_id:
+        raise GuardedRunnerError("OANDA_ACCOUNT_ID is required.")
+
+    minimum_margin_raw = resolved_environment.get(
+        "OANDA_MINIMUM_MARGIN_AVAILABLE",
+        "0",
+    ).strip()
+
+    try:
+        minimum_margin_available = float(minimum_margin_raw)
+    except ValueError as error:
+        raise GuardedRunnerError("OANDA_MINIMUM_MARGIN_AVAILABLE must be numeric.") from error
+
+    if minimum_margin_available < 0:
+        raise GuardedRunnerError("OANDA_MINIMUM_MARGIN_AVAILABLE cannot be negative.")
+
     if arguments.candle_count < 21 or arguments.candle_count > 5000:
         raise GuardedRunnerError("Candle count must be between 21 and 5000.")
 
@@ -249,6 +276,16 @@ def execute(
         run_controlled_daily_session if session_runner is None else session_runner
     )
 
+    def broker_preflight():
+        runtime_state = read_runtime_state(STATE_PATH)
+
+        return build_broker_backed_preflight(
+            token=api_token,
+            account_id=account_id,
+            runtime_state=runtime_state,
+            minimum_margin_available=(minimum_margin_available),
+        )
+
     result = resolved_session_runner(
         api_token=api_token,
         session_date=session_date,
@@ -260,6 +297,8 @@ def execute(
         environment="practice",
         candle_count=(arguments.candle_count),
         policy_verifier=(lambda: policy_fingerprint),
+        preflight_runner=broker_preflight,
+        preflight_context={},
         session_time_utc=session_time,
         software_commit=software_commit,
     )
