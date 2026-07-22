@@ -8,6 +8,7 @@ import {
   fetchOperatorAnnotations,
   fetchScannerOpportunities,
   saveOfflineAiInsight,
+  saveHostedAiInsight,
 } from "./api";
 import { MarketScanner } from "./components/MarketScanner";
 import type {
@@ -196,6 +197,12 @@ function App() {
     null,
   );
   const insightReviewKey = useRef<string | null>(null);
+  const [hostedConsent, setHostedConsent] = useState(false);
+  const [hostedStatus, setHostedStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [hostedError, setHostedError] = useState<string | null>(null);
+  const hostedRequestKey = useRef<string | null>(null);
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -412,6 +419,52 @@ function App() {
     },
     [insightReviewNote, state],
   );
+
+  const generateHostedBriefing = useCallback(async () => {
+    const currentData =
+      state.status === "ready" || state.status === "refreshing"
+        ? state.data
+        : null;
+    if (
+      currentData?.aiProviderReadiness.status !== "READY" ||
+      !hostedConsent
+    ) {
+      return;
+    }
+
+    setHostedStatus("saving");
+    setHostedError(null);
+    hostedRequestKey.current ??= crypto.randomUUID();
+    try {
+      await saveHostedAiInsight(hostedRequestKey.current);
+      const [aiInsights, aiGovernance] = await Promise.all([
+        fetchAiInsights(),
+        fetchAiGovernance(),
+      ]);
+      setState((current) => {
+        if (
+          current.status !== "ready" &&
+          current.status !== "refreshing"
+        ) {
+          return current;
+        }
+        return {
+          status: "ready",
+          data: { ...current.data, aiInsights, aiGovernance },
+        };
+      });
+      hostedRequestKey.current = null;
+      setHostedConsent(false);
+      setHostedStatus("saved");
+    } catch (error: unknown) {
+      setHostedStatus("error");
+      setHostedError(
+        error instanceof Error
+          ? error.message
+          : "The hosted briefing could not be generated.",
+      );
+    }
+  }, [hostedConsent, state]);
 
   if (state.status === "loading") {
     return (
@@ -718,6 +771,45 @@ function App() {
           </div>
           {aiProviderReadiness.blocking_reasons.length > 0 && (
             <p>{aiProviderReadiness.blocking_reasons.join(" ")}</p>
+          )}
+          <div className="hosted-consent">
+            <label>
+              <input
+                type="checkbox"
+                checked={hostedConsent}
+                disabled={aiProviderReadiness.status !== "READY"}
+                onChange={(event) => {
+                  setHostedConsent(event.target.checked);
+                  setHostedStatus("idle");
+                }}
+              />
+              I confirm the sanitized evidence snapshot may be sent to the
+              configured OpenAI model.
+            </label>
+            <button
+              className="button button--compact"
+              type="button"
+              disabled={
+                aiProviderReadiness.status !== "READY" ||
+                !hostedConsent ||
+                hostedStatus === "saving"
+              }
+              onClick={() => void generateHostedBriefing()}
+            >
+              {hostedStatus === "saving"
+                ? "Generating…"
+                : "Generate hosted briefing"}
+            </button>
+          </div>
+          {hostedStatus === "saved" && (
+            <p className="hosted-message hosted-message--success">
+              Hosted briefing saved; human review is now required.
+            </p>
+          )}
+          {hostedStatus === "error" && hostedError && (
+            <p className="hosted-message hosted-message--error">
+              {hostedError}
+            </p>
           )}
         </div>
 

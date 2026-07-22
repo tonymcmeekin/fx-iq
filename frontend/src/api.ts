@@ -198,6 +198,22 @@ export async function saveOfflineAiInsight(
   });
 }
 
+export async function saveHostedAiInsight(
+  idempotencyKey: string,
+): Promise<AiInsightAppendResponse> {
+  return requestJson<AiInsightAppendResponse>("/ai/evidence-briefing", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      idempotency_key: idempotencyKey,
+      provider_mode: "OPENAI",
+      external_transmission_confirmed: true,
+    }),
+  });
+}
+
 export async function fetchOperatorAnnotations(): Promise<AnnotationListResponse> {
   return requestJson<AnnotationListResponse>(
     "/operator-review/annotations",

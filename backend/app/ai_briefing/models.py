@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class BriefingModel(BaseModel):
@@ -83,6 +83,7 @@ class EvidenceBriefingResponse(BriefingModel):
 class BriefingGenerateRequest(BriefingModel):
     idempotency_key: str = Field(min_length=8, max_length=128)
     provider_mode: Literal["OFFLINE", "OPENAI"] = "OFFLINE"
+    external_transmission_confirmed: bool = False
 
     @field_validator("idempotency_key")
     @classmethod
@@ -90,6 +91,14 @@ class BriefingGenerateRequest(BriefingModel):
         if not value.strip():
             raise ValueError("Idempotency key cannot be blank.")
         return value.strip()
+
+    @model_validator(mode="after")
+    def require_hosted_transmission_confirmation(self):
+        if self.provider_mode == "OPENAI" and not self.external_transmission_confirmed:
+            raise ValueError(
+                "Hosted generation requires explicit external transmission confirmation."
+            )
+        return self
 
 
 class InsightRecord(BriefingModel):

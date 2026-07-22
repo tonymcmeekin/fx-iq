@@ -205,11 +205,38 @@ def test_hosted_generation_is_disabled_by_default(monkeypatch, tmp_path):
     monkeypatch.delenv("AI_BRIEFING_HOSTED_ENABLED", raising=False)
     with pytest.raises(EvidenceBriefingError, match="disabled"):
         generate_and_store_insight(
-            BriefingGenerateRequest(idempotency_key="briefing-request-3", provider_mode="OPENAI"),
+            BriefingGenerateRequest(
+                idempotency_key="briefing-request-3",
+                provider_mode="OPENAI",
+                external_transmission_confirmed=True,
+            ),
             insight_path=tmp_path / "insights.jsonl",
             reports=reports(),
             now_utc=NOW,
         )
+
+
+def test_hosted_request_requires_explicit_external_transmission_confirmation():
+    with pytest.raises(ValueError, match="external transmission confirmation"):
+        BriefingGenerateRequest(
+            idempotency_key="briefing-request-7",
+            provider_mode="OPENAI",
+        )
+
+    offline = BriefingGenerateRequest(
+        idempotency_key="briefing-request-8",
+        provider_mode="OFFLINE",
+    )
+    assert offline.external_transmission_confirmed is False
+
+    response = TestClient(app).post(
+        "/ai/evidence-briefing",
+        json={
+            "idempotency_key": "briefing-request-9",
+            "provider_mode": "OPENAI",
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_real_briefing_endpoint_is_offline_and_read_only():
