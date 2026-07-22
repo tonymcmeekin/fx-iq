@@ -208,6 +208,42 @@ def test_practice_canary_rehearses_full_lifecycle():
     assert json.loads(opener.requests[6].data) == {"units": "ALL"}
 
 
+def test_practice_canary_rehearses_sell_gslo_lifecycle():
+    responses = complete_responses()
+    responses[4]["orderFillTransaction"]["price"] = "0.84995"
+    responses[6]["orderFillTransaction"]["price"] = "0.85005"
+    opener = RecordingOpener(responses)
+    sell_request = replace(
+        request(),
+        rehearsal_id="practice-sell-rehearsal-001",
+        direction=BrokerDirection.SELL,
+        stop_loss=0.86,
+        take_profit=0.83,
+    )
+
+    result = OandaCanaryGateway(
+        token="practice-token",
+        account_id=ACCOUNT_ID,
+        opener=opener,
+    ).rehearse(sell_request, now_utc=NOW)
+
+    order = json.loads(opener.requests[4].data)["order"]
+    assert order["units"] == "-1"
+    assert order["priceBound"] == "0.84958"
+    assert order["guaranteedStopLossOnFill"]["price"] == "0.86"
+    assert order["takeProfitOnFill"]["price"] == "0.83"
+    assert result.direction == "SELL"
+    assert result.entry_reference_price == "0.85"
+    assert result.entry_fill_price == "0.84995"
+    assert result.exit_fill_price == "0.85005"
+    assert result.entry_slippage_price == "0.00005"
+    assert result.entry_slippage_gbp == "0.00005"
+    assert result.stop_loss_risk_gbp == "0.01042"
+    assert result.worst_case_loss_gbp == "10.01052"
+    assert result.remaining_loss_budget_gbp == "39.98948"
+    assert result.post_close_exposure_verified is True
+
+
 def test_live_canary_is_build_locked_before_network_access():
     opener = RecordingOpener([])
     with pytest.raises(CanaryGatewayError, match="build-locked"):
