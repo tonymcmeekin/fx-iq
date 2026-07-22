@@ -17,6 +17,7 @@ from app.ai_briefing.providers import (
     EvidenceBriefingProvider,
     OpenAIResponsesProvider,
 )
+from app.ai_briefing.quality import validate_briefing_quality
 from app.ai_briefing.store import append_insight, read_insights
 from app.analytics.evidence_cockpit_reporting import build_evidence_cockpit
 from app.analytics.operator_alert_reporting import build_operator_alert_report
@@ -142,6 +143,12 @@ def build_evidence_briefing(
         snapshot = _snapshot(reports, resolved_now)
         briefing = selected.generate(snapshot)
         _validate_citations(selected, briefing, snapshot)
+        quality_gate = validate_briefing_quality(briefing, snapshot)
+        if quality_gate.status != "PASS":
+            raise EvidenceBriefingError(
+                "AI briefing failed deterministic quality checks: "
+                + ", ".join(quality_gate.failures)
+            )
     except (OSError, RuntimeError, ValueError) as error:
         if isinstance(error, EvidenceBriefingError):
             raise
@@ -156,6 +163,7 @@ def build_evidence_briefing(
         "input_fingerprint": snapshot_fingerprint(snapshot),
         "hosted_provider_available": hosted_provider_available(),
         "briefing": briefing.model_dump(mode="json"),
+        "quality_gate": quality_gate.model_dump(mode="json"),
         "safety": BriefingSafety(
             network_calls_made=selected.network_calls_made,
         ).model_dump(mode="json"),
@@ -190,6 +198,7 @@ def generate_and_store_insight(
             prompt_fingerprint=response["prompt_fingerprint"],
             input_fingerprint=response["input_fingerprint"],
             briefing=response["briefing"],
+            quality_gate=response["quality_gate"],
         )
     except (OSError, RuntimeError, ValueError, BriefingProviderError) as error:
         if isinstance(error, EvidenceBriefingError):

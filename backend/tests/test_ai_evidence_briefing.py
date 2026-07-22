@@ -15,6 +15,7 @@ from app.ai_briefing.providers import (
     DeterministicEvidenceProvider,
     OpenAIResponsesProvider,
 )
+from app.ai_briefing.quality import validate_briefing_quality
 from app.ai_briefing.service import (
     EvidenceBriefingError,
     build_ai_governance_report,
@@ -122,7 +123,50 @@ def test_offline_briefing_is_sparse_safe_and_cited():
     assert "0/20" in result["briefing"]["why_waiting"][0]
     assert any("AUD_JPY" in item for item in result["briefing"]["what_changed"])
     assert len(result["briefing"]["citations"]) == 3
+    assert result["quality_gate"]["status"] == "PASS"
     assert result["safety"]["broker_orders_submitted"] == 0
+
+
+def test_quality_gate_rejects_trading_language_and_sensitive_patterns():
+    snapshot = build_sanitized_snapshot(
+        cockpit=reports()[0],
+        alerts=reports()[1],
+        portfolio=reports()[2],
+        outcomes=reports()[3],
+        annotations=reports()[4],
+        now_utc=NOW,
+    )
+    valid = DeterministicEvidenceProvider().generate(snapshot)
+    assert validate_briefing_quality(valid, snapshot).status == "PASS"
+
+    unsafe = valid.model_copy(deep=True)
+    unsafe.headline = "Buy now and place an order for account 101-004-39785237-001."
+    gate = validate_briefing_quality(unsafe, snapshot)
+
+    assert gate.status == "FAIL"
+    assert gate.prohibited_trading_language_absent is False
+    assert gate.sensitive_identifier_patterns_absent is False
+
+    ungrounded = valid.model_copy(deep=True)
+    ungrounded.citations = ungrounded.citations[:1]
+    grounding_gate = validate_briefing_quality(ungrounded, snapshot)
+    assert grounding_gate.status == "FAIL"
+    assert grounding_gate.core_evidence_cited is False
+
+    class UnsafeProvider:
+        mode = "OPENAI"
+        model = "test-model"
+        network_calls_made = 1
+
+        def generate(self, snapshot):
+            return unsafe
+
+    with pytest.raises(EvidenceBriefingError, match="quality checks"):
+        build_evidence_briefing(
+            reports=reports(),
+            provider=UnsafeProvider(),
+            now_utc=NOW,
+        )
 
 
 def test_hosted_adapter_sends_only_snapshot_and_requires_structured_output():

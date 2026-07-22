@@ -864,6 +864,45 @@ function App() {
           ))}
         </div>
 
+        <div className="ai-quality-gate">
+          <div>
+            <strong>Deterministic output gate</strong>
+            <span
+              className={
+                aiBriefing.quality_gate.status === "PASS"
+                  ? "badge badge--positive"
+                  : "badge badge--danger"
+              }
+            >
+              {aiBriefing.quality_gate.status}
+            </span>
+          </div>
+          <ul>
+            <li>
+              {aiBriefing.quality_gate.core_evidence_cited ? "✓" : "×"}
+              Core evidence cited
+            </li>
+            <li>
+              {aiBriefing.quality_gate.sparse_evidence_acknowledged
+                ? "✓"
+                : "×"}
+              Sparse evidence disclosed
+            </li>
+            <li>
+              {aiBriefing.quality_gate.prohibited_trading_language_absent
+                ? "✓"
+                : "×"}
+              No trading instructions
+            </li>
+            <li>
+              {aiBriefing.quality_gate.sensitive_identifier_patterns_absent
+                ? "✓"
+                : "×"}
+              No sensitive identifier patterns
+            </li>
+          </ul>
+        </div>
+
         {insightStatus === "saved" && (
           <p className="annotation-message annotation-message--success">
             Briefing appended to the verified AI insight chain.
@@ -917,6 +956,7 @@ function App() {
                   <small>
                     Hash {insight.record_hash.slice(0, 10)} ·{" "}
                     {formatLabel(insight.provider_mode)} · {insight.model} ·{" "}
+                    Quality {insight.quality_gate.status} ·{" "}
                     {new Date(insight.created_at_utc).toLocaleString()}
                   </small>
                 </article>

@@ -67,6 +67,16 @@ class BriefingSafety(BriefingModel):
     protocol_live_trading_permitted: Literal[False] = False
 
 
+class BriefingQualityGate(BriefingModel):
+    status: Literal["PASS", "FAIL"]
+    citations_valid: bool
+    core_evidence_cited: bool
+    sparse_evidence_acknowledged: bool
+    prohibited_trading_language_absent: bool
+    sensitive_identifier_patterns_absent: bool
+    failures: list[str]
+
+
 class EvidenceBriefingResponse(BriefingModel):
     schema_version: int = 1
     status: Literal["READY"] = "READY"
@@ -77,6 +87,7 @@ class EvidenceBriefingResponse(BriefingModel):
     input_fingerprint: str = Field(min_length=64, max_length=64)
     hosted_provider_available: bool
     briefing: BriefingDraft
+    quality_gate: BriefingQualityGate
     safety: BriefingSafety
 
 
@@ -112,6 +123,7 @@ class InsightRecord(BriefingModel):
     prompt_fingerprint: str
     input_fingerprint: str
     briefing: BriefingDraft
+    quality_gate: BriefingQualityGate
     previous_hash: str = Field(min_length=64, max_length=64)
     record_hash: str = Field(min_length=64, max_length=64)
 

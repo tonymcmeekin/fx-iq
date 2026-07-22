@@ -366,6 +366,37 @@ button {
   font-size: 0.75rem;
 }
 
+.ai-quality-gate {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #355e5a;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.ai-quality-gate > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-quality-gate ul {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-quality-gate li {
+  display: flex;
+  gap: 0.4rem;
+  color: #b7f3d3;
+  font-size: 0.8rem;
+}
+
 .ai-heading-actions {
   display: flex;
   align-items: center;
@@ -1044,6 +1075,10 @@ footer {
   .hosted-consent {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .ai-quality-gate ul {
+    grid-template-columns: 1fr 1fr;
   }
 
   .ai-briefing-grid article:last-child {

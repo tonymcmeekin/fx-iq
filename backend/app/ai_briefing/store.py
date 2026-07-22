@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.ai_briefing.models import BriefingDraft, InsightRecord
+from app.ai_briefing.models import BriefingDraft, BriefingQualityGate, InsightRecord
 
 GENESIS_HASH = "0" * 64
 
@@ -86,10 +86,12 @@ def append_insight(
     prompt_fingerprint: str,
     input_fingerprint: str,
     briefing: BriefingDraft | dict[str, Any],
+    quality_gate: BriefingQualityGate | dict[str, Any],
 ) -> tuple[InsightRecord, bool]:
     if created_at_utc.tzinfo is None:
         raise InsightStoreError("AI insight time must be timezone-aware.")
     briefing = BriefingDraft.model_validate(briefing)
+    quality_gate = BriefingQualityGate.model_validate(quality_gate)
     insight_id = _hash({"idempotency_key": idempotency_key})
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
@@ -117,6 +119,7 @@ def append_insight(
             "prompt_fingerprint": prompt_fingerprint,
             "input_fingerprint": input_fingerprint,
             "briefing": briefing.model_dump(mode="json"),
+            "quality_gate": quality_gate.model_dump(mode="json"),
             "previous_hash": records[-1].record_hash if records else GENESIS_HASH,
         }
         payload["record_hash"] = _hash(payload)

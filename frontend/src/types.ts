@@ -267,6 +267,15 @@ export interface EvidenceBriefingResponse {
     next_review_questions: string[];
     citations: EvidenceCitation[];
   };
+  quality_gate: {
+    status: "PASS" | "FAIL";
+    citations_valid: boolean;
+    core_evidence_cited: boolean;
+    sparse_evidence_acknowledged: boolean;
+    prohibited_trading_language_absent: boolean;
+    sensitive_identifier_patterns_absent: boolean;
+    failures: string[];
+  };
   safety: {
     input_sanitized: true;
     credentials_included: false;
@@ -292,6 +301,7 @@ export interface AiInsightRecord {
   prompt_fingerprint: string;
   input_fingerprint: string;
   briefing: EvidenceBriefingResponse["briefing"];
+  quality_gate: EvidenceBriefingResponse["quality_gate"];
   previous_hash: string;
   record_hash: string;
 }
