@@ -255,7 +255,7 @@ current practice quote and run:
 ```bash
 python scripts/run_oanda_practice_canary_rehearsal.py \
   --rehearsal-id UNIQUE-ID \
-  --instrument EUR_USD \
+  --instrument EUR_GBP \
   --direction BUY \
   --stop-loss PRICE \
   --take-profit PRICE \
@@ -273,11 +273,21 @@ broker-reported GSLO premium, and the explicit reserved-cost allowance. Their
 sum must not exceed £50. Older normal-stop receipts remain in lifetime history
 but do not count toward the qualifying GSLO rehearsal streak.
 
+If OANDA initially returns a stale price, the gateway performs at most two
+additional GET-only refreshes with a short bounded delay. It never retries an
+order submission. A quote that remains stale fails closed before any entry
+request is attempted.
+
 Never reuse a rehearsal ID. The gateway checks OANDA for the derived client ID
 before price collection or submission. If post-fill verification fails, it
 attempts an emergency close and instructs the operator to reconcile the
 practice account immediately. A completed result must show two practice broker
 actions (entry and close), zero live orders, and a verified closed position.
+The final account-wide reconciliation requires no open trades, no pending
+orders, zero units on every reported position, and a balance matching the close
+fill. New receipts also capture the entry reference and fill prices, exit fill,
+signed entry slippage, realized GBP P/L, financing, commission, GSLO execution
+fee, net account-balance impact, and quote-refresh count.
 Successful results are appended to the ignored, hash-chained runtime audit at
 `paper_ledger/canary_rehearsals.jsonl`; no token or raw account ID is stored.
 Failed attempts are appended separately to

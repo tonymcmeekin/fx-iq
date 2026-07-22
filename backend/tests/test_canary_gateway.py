@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
@@ -62,6 +63,7 @@ def complete_responses():
         {
             "account": {
                 "currency": "GBP",
+                "balance": "1000.0000",
                 "guaranteedStopLossOrderMode": "ALLOWED",
                 "trades": [],
                 "orders": [],
@@ -100,6 +102,12 @@ def complete_responses():
         {
             "orderFillTransaction": {
                 "id": "101",
+                "price": "0.85025",
+                "pl": "0.0000",
+                "financing": "0.0000",
+                "commission": "0.0000",
+                "guaranteedExecutionFee": "0.0000",
+                "accountBalance": "1000.0000",
                 "tradeOpened": {"tradeID": "202"},
             }
         },
@@ -112,8 +120,31 @@ def complete_responses():
                 "takeProfitOrder": {"id": "204"},
             }
         },
-        {"orderFillTransaction": {"id": "205"}},
-        {"trades": []},
+        {
+            "orderFillTransaction": {
+                "id": "205",
+                "price": "0.85015",
+                "pl": "-0.0001",
+                "financing": "0.0000",
+                "commission": "0.0000",
+                "guaranteedExecutionFee": "0.0000",
+                "accountBalance": "999.9999",
+            }
+        },
+        {
+            "account": {
+                "balance": "999.9999",
+                "trades": [],
+                "orders": [],
+                "positions": [
+                    {
+                        "instrument": "EUR_GBP",
+                        "long": {"units": "0"},
+                        "short": {"units": "0"},
+                    }
+                ],
+            }
+        },
     ]
 
 
@@ -157,6 +188,23 @@ def test_practice_canary_rehearses_full_lifecycle():
     assert result.gslo_premium_gbp == "0.0001"
     assert result.worst_case_loss_gbp == "10.01073"
     assert result.remaining_loss_budget_gbp == "39.98927"
+    assert result.quote_refresh_attempts == 1
+    assert result.entry_reference_price == "0.8502"
+    assert result.entry_fill_price == "0.85025"
+    assert result.exit_fill_price == "0.85015"
+    assert result.entry_slippage_price == "0.00005"
+    assert result.entry_slippage_gbp == "0.00005"
+    assert result.realized_pl_gbp == "-0.0001"
+    assert result.financing_gbp == "0"
+    assert result.commission_gbp == "0"
+    assert result.guaranteed_execution_fee_gbp == "0"
+    assert result.net_account_impact_gbp == "-0.0001"
+    assert result.post_close_open_trade_count == 0
+    assert result.post_close_pending_order_count == 0
+    assert result.post_close_nonzero_position_count == 0
+    assert result.post_close_net_units == "0"
+    assert result.post_close_exposure_verified is True
+    assert result.account_balance_reconciled is True
     assert json.loads(opener.requests[6].data) == {"units": "ALL"}
 
 
@@ -178,6 +226,7 @@ def test_canary_requires_empty_practice_account():
             {
                 "account": {
                     "currency": "GBP",
+                    "balance": "1000.0000",
                     "guaranteedStopLossOrderMode": "ALLOWED",
                     "trades": [{"id": "existing"}],
                     "orders": [],
@@ -201,6 +250,7 @@ def test_canary_duplicate_id_is_rejected_before_pricing_or_submission():
             {
                 "account": {
                     "currency": "GBP",
+                    "balance": "1000.0000",
                     "guaranteedStopLossOrderMode": "ALLOWED",
                     "trades": [],
                     "orders": [],
@@ -220,13 +270,16 @@ def test_canary_duplicate_id_is_rejected_before_pricing_or_submission():
 
 
 def test_canary_rejects_stale_quote_before_submission():
-    responses = complete_responses()[:3]
-    responses[2]["prices"][0]["time"] = "2026-07-22T11:59:00Z"
+    stale_price = deepcopy(complete_responses()[2])
+    stale_price["prices"][0]["time"] = "2026-07-22T11:59:00Z"
+    responses = complete_responses()[:2] + [deepcopy(stale_price) for _ in range(3)]
     opener = RecordingOpener(responses)
+    delays = []
     gateway = OandaCanaryGateway(
         token="practice-token",
         account_id=ACCOUNT_ID,
         opener=opener,
+        sleeper=delays.append,
     )
     with pytest.raises(CanaryGatewayError, match="stale") as captured:
         gateway.rehearse(request(), now_utc=NOW)
@@ -235,6 +288,34 @@ def test_canary_rejects_stale_quote_before_submission():
     assert failure.stage == "PRICE_PREFLIGHT"
     assert failure.entry_request_attempted is False
     assert failure.operator_action_required is False
+    assert len(opener.requests) == 5
+    assert delays == [0.25, 0.25]
+
+
+def test_canary_refreshes_one_stale_quote_with_get_only_before_submission():
+    stale_price = deepcopy(complete_responses()[2])
+    stale_price["prices"][0]["time"] = "2026-07-22T11:59:00Z"
+    responses = complete_responses()
+    responses.insert(2, stale_price)
+    opener = RecordingOpener(responses)
+    delays = []
+
+    result = OandaCanaryGateway(
+        token="practice-token",
+        account_id=ACCOUNT_ID,
+        opener=opener,
+        sleeper=delays.append,
+    ).rehearse(request(), now_utc=NOW)
+
+    assert result.quote_refresh_attempts == 2
+    assert result.network_calls_made == 9
+    assert [item.get_method() for item in opener.requests[:4]] == [
+        "GET",
+        "GET",
+        "GET",
+        "GET",
+    ]
+    assert delays == [0.25]
 
 
 def test_post_fill_validation_failure_submits_emergency_close():
@@ -299,6 +380,7 @@ def test_lost_entry_response_recovers_by_client_id_without_duplicate_post():
                     "tradeOpenedID": "202",
                 }
             },
+            {"transaction": complete_responses()[4]["orderFillTransaction"]},
             complete_responses()[5],
             complete_responses()[6],
             complete_responses()[7],
@@ -314,6 +396,7 @@ def test_lost_entry_response_recovers_by_client_id_without_duplicate_post():
     assert result.position_verified_closed is True
     assert [item.get_method() for item in opener.requests].count("POST") == 1
     assert "/orders/@canary_" in opener.requests[5].full_url
+    assert "/transactions/101" in opener.requests[6].full_url
 
 
 def test_canary_rejects_non_gbp_quote_before_gslo_or_submission():
@@ -411,3 +494,37 @@ def test_canary_rejects_gslo_inside_broker_minimum_distance():
 
     assert len(opener.requests) == 4
     assert all(item.get_method() == "GET" for item in opener.requests)
+
+
+def test_canary_rejects_nonzero_post_close_exposure_after_close():
+    responses = complete_responses()
+    responses[-1]["account"]["positions"][0]["long"]["units"] = "1"
+    opener = RecordingOpener(responses)
+    gateway = OandaCanaryGateway(
+        token="practice-token",
+        account_id=ACCOUNT_ID,
+        opener=opener,
+    )
+
+    with pytest.raises(CanaryGatewayError, match="non-zero exposure") as captured:
+        gateway.rehearse(request(), now_utc=NOW)
+
+    failure = gateway.failure_context(captured.value)
+    assert failure.stage == "FINAL_RECONCILIATION"
+    assert failure.entry_order_confirmed is True
+    assert failure.close_order_confirmed is True
+    assert failure.final_reconciliation_confirmed is False
+    assert failure.operator_action_required is True
+
+
+def test_canary_rejects_final_balance_mismatch_after_close():
+    responses = complete_responses()
+    responses[-1]["account"]["balance"] = "999.9998"
+    opener = RecordingOpener(responses)
+
+    with pytest.raises(CanaryGatewayError, match="balance"):
+        OandaCanaryGateway(
+            token="practice-token",
+            account_id=ACCOUNT_ID,
+            opener=opener,
+        ).rehearse(request(), now_utc=NOW)

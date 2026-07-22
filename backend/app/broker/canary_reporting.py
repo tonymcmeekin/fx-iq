@@ -37,6 +37,7 @@ def build_canary_readiness_report(
             "rehearsal_count": 0,
             "qualifying_rehearsal_count": 0,
             "gslo_rehearsal_count": 0,
+            "outcome_evidence_rehearsal_count": 0,
             "failed_rehearsal_count": 0,
             "unresolved_failure_count": 0,
             "required_rehearsals": MINIMUM_PRACTICE_REHEARSALS,
@@ -54,6 +55,16 @@ def build_canary_readiness_report(
             "latest_loss_budget_gbp": None,
             "latest_worst_case_loss_gbp": None,
             "latest_gslo_premium_gbp": None,
+            "latest_entry_fill_price": None,
+            "latest_exit_fill_price": None,
+            "latest_entry_slippage_gbp": None,
+            "latest_realized_pl_gbp": None,
+            "latest_financing_gbp": None,
+            "latest_commission_gbp": None,
+            "latest_guaranteed_execution_fee_gbp": None,
+            "latest_net_account_impact_gbp": None,
+            "latest_quote_refresh_attempts": None,
+            "latest_post_close_exposure_verified": None,
             "live_canary_build_enabled": LIVE_CANARY_BUILD_ENABLED,
             "live_execution_locked": True,
             "live_trading_allowed": False,
@@ -76,7 +87,7 @@ def build_canary_readiness_report(
     qualifying_records = [
         record
         for record in records
-        if record.get("schema_version") == 2
+        if record.get("schema_version") in {2, 3}
         and record.get("guaranteed_stop_loss") is True
         and (
             latest_failure_time is None
@@ -97,6 +108,8 @@ def build_canary_readiness_report(
     )
     live_orders = sum(int(record["live_orders_submitted"]) for record in records)
     latest = records[-1] if records else None
+    outcome_records = [record for record in records if record.get("schema_version") == 3]
+    latest_outcome = outcome_records[-1] if outcome_records else None
     next_actions = []
     if unresolved_failures:
         next_actions.append(
@@ -127,8 +140,9 @@ def build_canary_readiness_report(
         "gslo_rehearsal_count": sum(
             1
             for record in records
-            if record.get("schema_version") == 2 and record.get("guaranteed_stop_loss") is True
+            if record.get("schema_version") in {2, 3} and record.get("guaranteed_stop_loss") is True
         ),
+        "outcome_evidence_rehearsal_count": len(outcome_records),
         "failed_rehearsal_count": len(failures),
         "unresolved_failure_count": unresolved_failures,
         "required_rehearsals": MINIMUM_PRACTICE_REHEARSALS,
@@ -154,6 +168,36 @@ def build_canary_readiness_report(
             None if latest is None else latest.get("worst_case_loss_gbp")
         ),
         "latest_gslo_premium_gbp": None if latest is None else latest.get("gslo_premium_gbp"),
+        "latest_entry_fill_price": (
+            None if latest_outcome is None else latest_outcome.get("entry_fill_price")
+        ),
+        "latest_exit_fill_price": (
+            None if latest_outcome is None else latest_outcome.get("exit_fill_price")
+        ),
+        "latest_entry_slippage_gbp": (
+            None if latest_outcome is None else latest_outcome.get("entry_slippage_gbp")
+        ),
+        "latest_realized_pl_gbp": (
+            None if latest_outcome is None else latest_outcome.get("realized_pl_gbp")
+        ),
+        "latest_financing_gbp": (
+            None if latest_outcome is None else latest_outcome.get("financing_gbp")
+        ),
+        "latest_commission_gbp": (
+            None if latest_outcome is None else latest_outcome.get("commission_gbp")
+        ),
+        "latest_guaranteed_execution_fee_gbp": (
+            None if latest_outcome is None else latest_outcome.get("guaranteed_execution_fee_gbp")
+        ),
+        "latest_net_account_impact_gbp": (
+            None if latest_outcome is None else latest_outcome.get("net_account_impact_gbp")
+        ),
+        "latest_quote_refresh_attempts": (
+            None if latest_outcome is None else latest_outcome.get("quote_refresh_attempts")
+        ),
+        "latest_post_close_exposure_verified": (
+            None if latest_outcome is None else latest_outcome.get("post_close_exposure_verified")
+        ),
         "live_canary_build_enabled": LIVE_CANARY_BUILD_ENABLED,
         "live_execution_locked": True,
         "live_trading_allowed": False,

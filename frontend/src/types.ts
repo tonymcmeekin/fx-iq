@@ -361,6 +361,7 @@ export interface CanaryReadinessResponse {
   rehearsal_count: number;
   qualifying_rehearsal_count: number;
   gslo_rehearsal_count: number;
+  outcome_evidence_rehearsal_count: number;
   failed_rehearsal_count: number;
   unresolved_failure_count: number;
   required_rehearsals: number;
@@ -378,6 +379,16 @@ export interface CanaryReadinessResponse {
   latest_loss_budget_gbp: string | null;
   latest_worst_case_loss_gbp: string | null;
   latest_gslo_premium_gbp: string | null;
+  latest_entry_fill_price: string | null;
+  latest_exit_fill_price: string | null;
+  latest_entry_slippage_gbp: string | null;
+  latest_realized_pl_gbp: string | null;
+  latest_financing_gbp: string | null;
+  latest_commission_gbp: string | null;
+  latest_guaranteed_execution_fee_gbp: string | null;
+  latest_net_account_impact_gbp: string | null;
+  latest_quote_refresh_attempts: number | null;
+  latest_post_close_exposure_verified: boolean | null;
   live_canary_build_enabled: false;
   live_execution_locked: true;
   live_trading_allowed: false;

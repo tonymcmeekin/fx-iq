@@ -43,7 +43,7 @@ def _parse(text: str) -> list[dict[str, Any]]:
         if not isinstance(record, dict):
             raise CanaryAuditError(f"Invalid canary audit record at line {line_number}.")
         schema_version = record.get("schema_version")
-        if schema_version not in {1, 2} or record.get("sequence") != line_number:
+        if schema_version not in {1, 2, 3} or record.get("sequence") != line_number:
             raise CanaryAuditError(f"Canary audit sequence mismatch at line {line_number}.")
         if record.get("previous_hash") != previous:
             raise CanaryAuditError(f"Canary audit chain mismatch at line {line_number}.")
@@ -69,7 +69,7 @@ def _parse(text: str) -> list[dict[str, Any]]:
         }
         if any(record.get(key) != value for key, value in expected_invariants.items()):
             raise CanaryAuditError(f"Canary audit safety invariant failed at line {line_number}.")
-        if schema_version == 2:
+        if schema_version in {2, 3}:
             try:
                 budget = Decimal(str(record.get("loss_budget_gbp")))
                 reserved = Decimal(str(record.get("reserved_costs_gbp")))
@@ -100,6 +100,53 @@ def _parse(text: str) -> list[dict[str, Any]]:
                 or remaining != budget - worst_case
             ):
                 raise CanaryAuditError(f"Canary GBP budget invariant failed at line {line_number}.")
+        if schema_version == 3:
+            try:
+                entry_reference = Decimal(str(record.get("entry_reference_price")))
+                entry_fill = Decimal(str(record.get("entry_fill_price")))
+                exit_fill = Decimal(str(record.get("exit_fill_price")))
+                slippage_price = Decimal(str(record.get("entry_slippage_price")))
+                slippage_gbp = Decimal(str(record.get("entry_slippage_gbp")))
+                realized_pl = Decimal(str(record.get("realized_pl_gbp")))
+                financing = Decimal(str(record.get("financing_gbp")))
+                commission = Decimal(str(record.get("commission_gbp")))
+                gslo_fee = Decimal(str(record.get("guaranteed_execution_fee_gbp")))
+                net_impact = Decimal(str(record.get("net_account_impact_gbp")))
+                net_units = Decimal(str(record.get("post_close_net_units")))
+            except InvalidOperation as error:
+                raise CanaryAuditError(
+                    f"Invalid canary outcome evidence at line {line_number}."
+                ) from error
+            outcome_values = (
+                entry_reference,
+                entry_fill,
+                exit_fill,
+                slippage_price,
+                slippage_gbp,
+                realized_pl,
+                financing,
+                commission,
+                gslo_fee,
+                net_impact,
+                net_units,
+            )
+            quote_attempts = record.get("quote_refresh_attempts")
+            if (
+                not all(value.is_finite() for value in outcome_values)
+                or min(entry_reference, entry_fill, exit_fill) <= 0
+                or slippage_gbp != slippage_price
+                or not isinstance(quote_attempts, int)
+                or not 1 <= quote_attempts <= 3
+                or record.get("post_close_open_trade_count") != 0
+                or record.get("post_close_pending_order_count") != 0
+                or record.get("post_close_nonzero_position_count") != 0
+                or net_units != 0
+                or record.get("post_close_exposure_verified") is not True
+                or record.get("account_balance_reconciled") is not True
+            ):
+                raise CanaryAuditError(
+                    f"Canary outcome evidence invariant failed at line {line_number}."
+                )
         records.append(record)
         seen_ids.add(rehearsal_id)
         previous = record_hash
@@ -166,7 +213,7 @@ def append_canary_audit(
                 )
             return existing, False
         payload = {
-            "schema_version": 2,
+            "schema_version": 3,
             "sequence": len(records) + 1,
             "completed_at_utc": resolved_time.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             **result_payload,

@@ -64,6 +64,10 @@ function formatLabel(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatGbp(value: string | null): string {
+  return value === null ? "Unavailable" : `£${value}`;
+}
+
 function progressPercent(progress: CountProgress): number {
   if (progress.required <= 0) {
     return progress.requirement_met ? 100 : 0;
@@ -679,6 +683,15 @@ function App() {
               {canaryReadiness.failed_rehearsal_count} failed · GSLO £50 cap · live locked
             </span>
           </div>
+          <small>
+            Latest guarded allowance {formatGbp(canaryReadiness.latest_worst_case_loss_gbp)} ·{" "}
+            {canaryReadiness.outcome_evidence_rehearsal_count} detailed outcome receipts
+          </small>
+          <small>
+            {canaryReadiness.latest_net_account_impact_gbp === null
+              ? "Detailed fill and zero-exposure evidence begins with the next rehearsal."
+              : `Latest net ${formatGbp(canaryReadiness.latest_net_account_impact_gbp)} · slippage ${formatGbp(canaryReadiness.latest_entry_slippage_gbp)} · commission ${formatGbp(canaryReadiness.latest_commission_gbp)} · GSLO fee ${formatGbp(canaryReadiness.latest_guaranteed_execution_fee_gbp)} · ${canaryReadiness.latest_post_close_exposure_verified ? "zero exposure verified" : "exposure review required"}`}
+          </small>
         </article>
       </section>
 

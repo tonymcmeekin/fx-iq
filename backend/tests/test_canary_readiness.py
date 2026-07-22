@@ -33,6 +33,16 @@ def result(index: int) -> CanaryRehearsalResult:
         position_verified_open=True,
         position_verified_closed=True,
         live_canary_build_enabled=False,
+        entry_reference_price="0.8502",
+        entry_fill_price="0.85025",
+        exit_fill_price="0.85015",
+        entry_slippage_price="0.00005",
+        entry_slippage_gbp="0.00005",
+        realized_pl_gbp="-0.0001",
+        financing_gbp="0",
+        commission_gbp="0",
+        guaranteed_execution_fee_gbp="0",
+        net_account_impact_gbp="-0.0001",
     )
 
 
@@ -43,6 +53,7 @@ def test_empty_canary_readiness_is_locked_and_read_only(tmp_path):
     )
     assert report["status"] == "NO_EVIDENCE"
     assert report["rehearsal_count"] == 0
+    assert report["outcome_evidence_rehearsal_count"] == 0
     assert report["live_execution_locked"] is True
     assert report["live_canary_build_enabled"] is False
     assert report["live_trading_allowed"] is False
@@ -69,6 +80,11 @@ def test_canary_readiness_tracks_rehearsal_target_without_unlocking_live(tmp_pat
     assert report["all_positions_verified_closed"] is True
     assert report["practice_entry_orders_submitted"] == MINIMUM_PRACTICE_REHEARSALS
     assert report["practice_close_orders_submitted"] == MINIMUM_PRACTICE_REHEARSALS
+    assert report["outcome_evidence_rehearsal_count"] == MINIMUM_PRACTICE_REHEARSALS
+    assert report["latest_entry_fill_price"] == "0.85025"
+    assert report["latest_exit_fill_price"] == "0.85015"
+    assert report["latest_net_account_impact_gbp"] == "-0.0001"
+    assert report["latest_post_close_exposure_verified"] is True
     assert report["live_orders_submitted"] == 0
     assert report["live_execution_locked"] is True
     assert report["live_trading_allowed"] is False
@@ -140,6 +156,7 @@ def test_failure_requires_action_and_resets_qualifying_rehearsals(tmp_path):
     assert report["rehearsal_count"] == 1
     assert report["qualifying_rehearsal_count"] == 0
     assert report["gslo_rehearsal_count"] == 1
+    assert report["outcome_evidence_rehearsal_count"] == 1
     assert report["failed_rehearsal_count"] == 1
     assert report["unresolved_failure_count"] == 1
     assert report["operational_rehearsal_target_met"] is False

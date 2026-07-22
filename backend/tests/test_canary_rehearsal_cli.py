@@ -101,6 +101,16 @@ def test_cli_passes_explicit_gbp_budget_to_gateway(monkeypatch, tmp_path):
                 position_verified_open=True,
                 position_verified_closed=True,
                 live_canary_build_enabled=False,
+                entry_reference_price="0.8502",
+                entry_fill_price="0.85025",
+                exit_fill_price="0.85015",
+                entry_slippage_price="0.00005",
+                entry_slippage_gbp="0.00005",
+                realized_pl_gbp="-0.0001",
+                financing_gbp="0",
+                commission_gbp="0",
+                guaranteed_execution_fee_gbp="0",
+                net_account_impact_gbp="-0.0001",
             )
 
     monkeypatch.setenv("OANDA_ENVIRONMENT", "practice")

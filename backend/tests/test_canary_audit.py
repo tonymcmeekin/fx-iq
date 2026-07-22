@@ -30,6 +30,16 @@ def result(rehearsal_id="canary-audit-001"):
         position_verified_open=True,
         position_verified_closed=True,
         live_canary_build_enabled=False,
+        entry_reference_price="0.8502",
+        entry_fill_price="0.85025",
+        exit_fill_price="0.85015",
+        entry_slippage_price="0.00005",
+        entry_slippage_gbp="0.00005",
+        realized_pl_gbp="-0.0001",
+        financing_gbp="0",
+        commission_gbp="0",
+        guaranteed_execution_fee_gbp="0",
+        net_account_impact_gbp="-0.0001",
     )
 
 
@@ -94,3 +104,55 @@ def test_canary_audit_rejects_inconsistent_gbp_calculation_with_recomputed_hash(
 
     with pytest.raises(CanaryAuditError, match="GBP budget invariant"):
         read_canary_audit(path)
+
+
+def test_canary_audit_rejects_nonzero_post_close_exposure_with_recomputed_hash(tmp_path):
+    from app.broker import canary_audit
+
+    path = tmp_path / "canary.jsonl"
+    append_canary_audit(path, result())
+    payload = json.loads(path.read_text())
+    payload["post_close_net_units"] = "1"
+    payload["post_close_nonzero_position_count"] = 1
+    unhashed = dict(payload)
+    unhashed.pop("record_hash")
+    payload["record_hash"] = canary_audit._hash(unhashed)
+    path.write_text(canary_audit._canonical(payload) + "\n")
+
+    with pytest.raises(CanaryAuditError, match="outcome evidence invariant"):
+        read_canary_audit(path)
+
+
+def test_canary_audit_keeps_schema_two_receipts_readable(tmp_path):
+    from app.broker import canary_audit
+
+    path = tmp_path / "canary.jsonl"
+    append_canary_audit(path, result())
+    payload = json.loads(path.read_text())
+    payload["schema_version"] = 2
+    for field in (
+        "quote_refresh_attempts",
+        "entry_reference_price",
+        "entry_fill_price",
+        "exit_fill_price",
+        "entry_slippage_price",
+        "entry_slippage_gbp",
+        "realized_pl_gbp",
+        "financing_gbp",
+        "commission_gbp",
+        "guaranteed_execution_fee_gbp",
+        "net_account_impact_gbp",
+        "post_close_open_trade_count",
+        "post_close_pending_order_count",
+        "post_close_nonzero_position_count",
+        "post_close_net_units",
+        "post_close_exposure_verified",
+        "account_balance_reconciled",
+    ):
+        payload.pop(field)
+    unhashed = dict(payload)
+    unhashed.pop("record_hash")
+    payload["record_hash"] = canary_audit._hash(unhashed)
+    path.write_text(canary_audit._canonical(payload) + "\n")
+
+    assert read_canary_audit(path)[0]["schema_version"] == 2

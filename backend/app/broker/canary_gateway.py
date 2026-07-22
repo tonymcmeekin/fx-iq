@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,6 +22,8 @@ from app.broker.validation import BrokerOrderValidationError
 OANDA_PRACTICE_HOST: Final = "https://api-fxpractice.oanda.com"
 OANDA_LIVE_HOST: Final = "https://api-fxtrade.oanda.com"
 LIVE_CANARY_BUILD_ENABLED: Final = False
+MAXIMUM_QUOTE_ATTEMPTS: Final = 3
+QUOTE_RETRY_DELAY_SECONDS: Final = 0.25
 
 
 class CanaryEnvironment(StrEnum):
@@ -77,6 +80,23 @@ class CanaryRehearsalResult:
     quote_loss_conversion_factor: str = "1"
     gslo_minimum_distance: str = "0"
     gslo_execution_premium: str = "0"
+    quote_refresh_attempts: int = 1
+    entry_reference_price: str = "0"
+    entry_fill_price: str = "0"
+    exit_fill_price: str = "0"
+    entry_slippage_price: str = "0"
+    entry_slippage_gbp: str = "0"
+    realized_pl_gbp: str = "0"
+    financing_gbp: str = "0"
+    commission_gbp: str = "0"
+    guaranteed_execution_fee_gbp: str = "0"
+    net_account_impact_gbp: str = "0"
+    post_close_open_trade_count: int = 0
+    post_close_pending_order_count: int = 0
+    post_close_nonzero_position_count: int = 0
+    post_close_net_units: str = "0"
+    post_close_exposure_verified: bool = True
+    account_balance_reconciled: bool = True
 
 
 @dataclass(frozen=True)
@@ -99,6 +119,7 @@ class CanaryFailureContext:
 
 
 OpenUrl = Callable[..., Any]
+Sleeper = Callable[[float], None]
 
 
 def _required_object(payload: dict[str, Any], field: str) -> dict[str, Any]:
@@ -122,6 +143,16 @@ def _decimal(value: object, *, field: str, allow_zero: bool = False) -> Decimal:
         raise CanaryGatewayError(f"OANDA field {field!r} must be decimal.") from error
     if not parsed.is_finite() or parsed < 0 or (parsed == 0 and not allow_zero):
         raise CanaryGatewayError(f"OANDA field {field!r} must be positive and finite.")
+    return parsed
+
+
+def _signed_decimal(value: object, *, field: str) -> Decimal:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError) as error:
+        raise CanaryGatewayError(f"OANDA field {field!r} must be decimal.") from error
+    if not parsed.is_finite():
+        raise CanaryGatewayError(f"OANDA field {field!r} must be finite.")
     return parsed
 
 
@@ -195,6 +226,7 @@ class OandaCanaryGateway:
         environment: CanaryEnvironment = CanaryEnvironment.PRACTICE,
         timeout_seconds: float = 10.0,
         opener: OpenUrl = urlopen,
+        sleeper: Sleeper = time.sleep,
     ) -> None:
         if environment is CanaryEnvironment.LIVE:
             raise CanaryGatewayError(
@@ -209,6 +241,7 @@ class OandaCanaryGateway:
         self._environment = environment
         self._timeout_seconds = timeout_seconds
         self._opener = opener
+        self._sleeper = sleeper
         self._network_calls = 0
         self._rehearsal_id = "UNKNOWN"
         self._stage = "NOT_STARTED"
@@ -303,7 +336,7 @@ class OandaCanaryGateway:
         account: str,
         trade_id: str,
         request_id: str,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         self._close_request_attempted = True
         closed = self._request_json(
             "PUT",
@@ -315,7 +348,23 @@ class OandaCanaryGateway:
         close_fill = _required_object(closed, "orderFillTransaction")
         transaction_id = _required_string(close_fill, "id")
         self._close_order_confirmed = True
-        return transaction_id
+        return transaction_id, close_fill
+
+    def _get_fill_transaction(
+        self,
+        *,
+        account: str,
+        transaction_id: str,
+    ) -> dict[str, Any]:
+        payload = self._request_json(
+            "GET",
+            f"/v3/accounts/{account}/transactions/{quote(transaction_id, safe='-')}",
+        )
+        assert payload is not None
+        transaction = _required_object(payload, "transaction")
+        if _required_string(transaction, "id") != transaction_id:
+            raise CanaryGatewayError("OANDA returned the wrong fill transaction.")
+        return transaction
 
     def _recover_created_trade(
         self,
@@ -390,6 +439,10 @@ class OandaCanaryGateway:
         account_state = _required_object(account_payload, "account")
         if account_state.get("currency") != "GBP":
             raise CanaryGatewayError("Exact GBP loss budgeting requires a GBP account.")
+        starting_balance_gbp = _signed_decimal(
+            account_state.get("balance"),
+            field="account.balance",
+        )
         if account_state.get("guaranteedStopLossOrderMode") == "DISABLED":
             raise CanaryGatewayError("This practice account has guaranteed stop losses disabled.")
         for field in ("trades", "orders"):
@@ -418,27 +471,35 @@ class OandaCanaryGateway:
             }
         )
         self._stage = "PRICE_PREFLIGHT"
-        pricing_payload = self._request_json("GET", f"/v3/accounts/{account}/pricing?{query}")
-        assert pricing_payload is not None
-        prices = pricing_payload.get("prices")
-        if not isinstance(prices, list) or len(prices) != 1 or not isinstance(prices[0], dict):
-            raise CanaryGatewayError("OANDA returned an invalid canary price.")
-        price = prices[0]
-        if price.get("instrument") != request.instrument or price.get("status") != "tradeable":
-            raise CanaryGatewayError("The requested instrument is not tradeable.")
-        ask_text = _top_price(price, "asks")
-        bid_text = _top_price(price, "bids")
-        ask = _decimal(ask_text, field="asks[0].price")
-        bid = _decimal(bid_text, field="bids[0].price")
-        midpoint = (ask + bid) / 2
-        if ask <= bid or (ask - bid) / midpoint > Decimal(str(request.maximum_spread_fraction)):
-            raise CanaryGatewayError("Current practice spread exceeds the canary limit.")
-        resolved_now = now_utc or datetime.now(UTC)
-        if resolved_now.tzinfo is None:
+        if now_utc is not None and now_utc.tzinfo is None:
             raise CanaryGatewayError("Canary time must be timezone-aware.")
-        quote_age = (resolved_now.astimezone(UTC) - _parse_time(price.get("time"))).total_seconds()
-        if quote_age < 0 or quote_age > request.maximum_quote_age_seconds:
-            raise CanaryGatewayError("OANDA canary quote is stale.")
+        for quote_refresh_attempts in range(1, MAXIMUM_QUOTE_ATTEMPTS + 1):
+            pricing_payload = self._request_json("GET", f"/v3/accounts/{account}/pricing?{query}")
+            assert pricing_payload is not None
+            prices = pricing_payload.get("prices")
+            if not isinstance(prices, list) or len(prices) != 1 or not isinstance(prices[0], dict):
+                raise CanaryGatewayError("OANDA returned an invalid canary price.")
+            price = prices[0]
+            if price.get("instrument") != request.instrument or price.get("status") != "tradeable":
+                raise CanaryGatewayError("The requested instrument is not tradeable.")
+            ask_text = _top_price(price, "asks")
+            bid_text = _top_price(price, "bids")
+            ask = _decimal(ask_text, field="asks[0].price")
+            bid = _decimal(bid_text, field="bids[0].price")
+            midpoint = (ask + bid) / 2
+            if ask <= bid or (ask - bid) / midpoint > Decimal(str(request.maximum_spread_fraction)):
+                raise CanaryGatewayError("Current practice spread exceeds the canary limit.")
+            resolved_now = now_utc or datetime.now(UTC)
+            quote_age = (
+                resolved_now.astimezone(UTC) - _parse_time(price.get("time"))
+            ).total_seconds()
+            if 0 <= quote_age <= request.maximum_quote_age_seconds:
+                break
+            if quote_refresh_attempts == MAXIMUM_QUOTE_ATTEMPTS:
+                raise CanaryGatewayError(
+                    "OANDA canary quote remained stale after bounded read-only refreshes."
+                )
+            self._sleeper(QUOTE_RETRY_DELAY_SECONDS)
 
         quote_currency = request.instrument.rsplit("_", 1)[-1]
         if quote_currency != "GBP":
@@ -548,7 +609,19 @@ class OandaCanaryGateway:
                 order_client_id=order_client_id,
                 creation_error=creation_error,
             )
+            fill = self._get_fill_transaction(
+                account=account,
+                transaction_id=entry_transaction_id,
+            )
             self._entry_order_confirmed = True
+
+        entry_fill_price = _decimal(fill.get("price"), field="entry_fill.price")
+        entry_slippage_price = (
+            entry_fill_price - entry_price
+            if request.direction is BrokerDirection.BUY
+            else entry_price - entry_fill_price
+        )
+        entry_slippage_gbp = entry_slippage_price * Decimal(request.units) * loss_conversion_factor
 
         self._stage = "PROTECTION_VERIFICATION"
         try:
@@ -567,7 +640,7 @@ class OandaCanaryGateway:
                 )
 
             self._stage = "CLOSE_SUBMISSION"
-            close_transaction_id = self._close_trade(
+            close_transaction_id, close_fill = self._close_trade(
                 account=account,
                 trade_id=trade_id,
                 request_id=_client_id("close", request.rehearsal_id),
@@ -592,13 +665,68 @@ class OandaCanaryGateway:
             ) from lifecycle_error
 
         self._stage = "FINAL_RECONCILIATION"
-        final_payload = self._request_json("GET", f"/v3/accounts/{account}/openTrades")
+        final_payload = self._request_json("GET", f"/v3/accounts/{account}")
         assert final_payload is not None
-        final_trades = final_payload.get("trades")
-        if not isinstance(final_trades, list):
-            raise CanaryGatewayError("OANDA final trade reconciliation is invalid.")
-        if any(isinstance(item, dict) and item.get("id") == trade_id for item in final_trades):
-            raise CanaryGatewayError("Practice canary trade remains open after close request.")
+        final_account = _required_object(final_payload, "account")
+        final_trades = final_account.get("trades")
+        final_orders = final_account.get("orders")
+        final_positions = final_account.get("positions")
+        if not isinstance(final_trades, list) or not isinstance(final_orders, list):
+            raise CanaryGatewayError("OANDA final trade/order reconciliation is invalid.")
+        if final_trades or final_orders:
+            raise CanaryGatewayError(
+                "Practice canary account retains an open trade or pending order."
+            )
+        if not isinstance(final_positions, list) or not all(
+            isinstance(item, dict) for item in final_positions
+        ):
+            raise CanaryGatewayError("OANDA final position reconciliation is invalid.")
+        post_close_net_units = Decimal("0")
+        post_close_nonzero_position_count = 0
+        for index, position in enumerate(final_positions):
+            assert isinstance(position, dict)
+            long_side = _required_object(position, "long")
+            short_side = _required_object(position, "short")
+            long_units = _signed_decimal(
+                long_side.get("units"), field=f"positions[{index}].long.units"
+            )
+            short_units = _signed_decimal(
+                short_side.get("units"), field=f"positions[{index}].short.units"
+            )
+            post_close_net_units += long_units + short_units
+            if long_units != 0 or short_units != 0:
+                post_close_nonzero_position_count += 1
+        if post_close_nonzero_position_count or post_close_net_units != 0:
+            raise CanaryGatewayError("Practice canary account retains non-zero exposure.")
+
+        close_fill_price = _decimal(close_fill.get("price"), field="close_fill.price")
+        realized_pl_gbp = _signed_decimal(fill.get("pl"), field="entry_fill.pl") + _signed_decimal(
+            close_fill.get("pl"), field="close_fill.pl"
+        )
+        financing_gbp = _signed_decimal(
+            fill.get("financing"), field="entry_fill.financing"
+        ) + _signed_decimal(close_fill.get("financing"), field="close_fill.financing")
+        commission_gbp = _signed_decimal(
+            fill.get("commission"), field="entry_fill.commission"
+        ) + _signed_decimal(close_fill.get("commission"), field="close_fill.commission")
+        guaranteed_execution_fee_gbp = _signed_decimal(
+            fill.get("guaranteedExecutionFee"),
+            field="entry_fill.guaranteedExecutionFee",
+        ) + _signed_decimal(
+            close_fill.get("guaranteedExecutionFee"),
+            field="close_fill.guaranteedExecutionFee",
+        )
+        closing_balance_gbp = _signed_decimal(
+            close_fill.get("accountBalance"), field="close_fill.accountBalance"
+        )
+        final_balance_gbp = _signed_decimal(
+            final_account.get("balance"), field="final_account.balance"
+        )
+        if final_balance_gbp != closing_balance_gbp:
+            raise CanaryGatewayError(
+                "Final account balance does not match the confirmed close fill."
+            )
+        net_account_impact_gbp = final_balance_gbp - starting_balance_gbp
         self._final_reconciliation_confirmed = True
         self._stage = "COMPLETE"
 
@@ -632,4 +760,21 @@ class OandaCanaryGateway:
             quote_loss_conversion_factor=_decimal_text(loss_conversion_factor),
             gslo_minimum_distance=_decimal_text(gslo_minimum_distance),
             gslo_execution_premium=_decimal_text(gslo_premium_price),
+            quote_refresh_attempts=quote_refresh_attempts,
+            entry_reference_price=_decimal_text(entry_price),
+            entry_fill_price=_decimal_text(entry_fill_price),
+            exit_fill_price=_decimal_text(close_fill_price),
+            entry_slippage_price=_decimal_text(entry_slippage_price),
+            entry_slippage_gbp=_decimal_text(entry_slippage_gbp),
+            realized_pl_gbp=_decimal_text(realized_pl_gbp),
+            financing_gbp=_decimal_text(financing_gbp),
+            commission_gbp=_decimal_text(commission_gbp),
+            guaranteed_execution_fee_gbp=_decimal_text(guaranteed_execution_fee_gbp),
+            net_account_impact_gbp=_decimal_text(net_account_impact_gbp),
+            post_close_open_trade_count=len(final_trades),
+            post_close_pending_order_count=len(final_orders),
+            post_close_nonzero_position_count=post_close_nonzero_position_count,
+            post_close_net_units=_decimal_text(post_close_net_units),
+            post_close_exposure_verified=True,
+            account_balance_reconciled=True,
         )
