@@ -7,6 +7,9 @@ from datetime import (
 
 import pytest
 
+from app.intelligence.observation_store import (
+    read_observations,
+)
 from app.market_data.models import Candle
 from app.paper_trading.ledger import (
     verify_ledger,
@@ -196,6 +199,64 @@ def test_orchestrator_collects_frozen_markets_in_order(
         assert call[
             "api_token"
         ] == "test-token"
+
+
+def test_orchestrator_records_passive_observations(
+    tmp_path,
+):
+    observation_path = (
+        tmp_path / "intelligence_observations.jsonl"
+    )
+
+    observation_candles = [
+        Candle(
+            symbol="EUR_GBP",
+            timeframe="D",
+            timestamp=(
+                datetime(
+                    2026,
+                    5,
+                    16,
+                    21,
+                    0,
+                    tzinfo=UTC,
+                )
+                + timedelta(days=index)
+            ),
+            open=1.0000,
+            high=1.0100,
+            low=0.9900,
+            close=1.0000,
+            volume=1000,
+        )
+        for index in range(60)
+    ]
+
+    result = run_controlled_daily_session(
+        api_token="test-token",
+        session_date=SESSION_DATE,
+        ledger_path=(tmp_path / "events.jsonl"),
+        state_path=(tmp_path / "state.json"),
+        journal_path=(tmp_path / "transition.json"),
+        candle_store_directory=(tmp_path / "candles"),
+        observation_store_path=observation_path,
+        protocol=make_protocol(),
+        collector=(
+            lambda **kwargs: observation_candles
+        ),
+        policy_verifier=(lambda: POLICY_FINGERPRINT),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+    )
+
+    observations = read_observations(
+        observation_path
+    )
+
+    assert result["observations_recorded"] == 1
+    assert len(observations) == 1
+    assert observations[0].recorded_at_utc == SESSION_TIME
+    assert observations[0].recorded_at_utc.tzinfo is not None
 
 
 def test_actionable_signal_becomes_pending_entry(

@@ -51,6 +51,10 @@ DEFAULT_CANDLE_STORE_DIRECTORY = Path(
     "data/prospective_paper"
 )
 
+DEFAULT_OBSERVATION_STORE_PATH = Path(
+    "paper_ledger/intelligence_observations.jsonl"
+)
+
 CollectorFunction = Callable[
     ...,
     list[Candle],
@@ -66,6 +70,9 @@ def run_controlled_daily_session(
     journal_path: Path = DEFAULT_JOURNAL_PATH,
     candle_store_directory: Path = (
         DEFAULT_CANDLE_STORE_DIRECTORY
+    ),
+    observation_store_path: Path | None = (
+        DEFAULT_OBSERVATION_STORE_PATH
     ),
     protocol_path: Path = DEFAULT_PROTOCOL_PATH,
     protocol: dict | None = None,
@@ -311,6 +318,9 @@ def run_controlled_daily_session(
         ),
         software_commit=(
             software_commit
+        ),
+        observation_store_path=(
+            observation_store_path
         ),
         append_completion_event=False,
     )
