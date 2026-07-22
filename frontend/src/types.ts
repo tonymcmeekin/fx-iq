@@ -39,17 +39,6 @@ export interface ReadinessExplanationResponse {
   safety_statement: string;
 }
 
-export interface OperatorStatusResponse {
-  status: string;
-  observation_integrity_status: string | null;
-  observations_recorded: number;
-  observation_outcomes_populated: number;
-  observation_integrity_warnings: string[];
-  safe_to_continue_paper_observation: boolean;
-  safe_for_live_trading: false;
-  broker_orders_sent: number;
-}
-
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -95,7 +84,6 @@ export interface DecisionEvaluationResponse {
 export interface DashboardData {
   readiness: ReadinessResponse;
   explanation: ReadinessExplanationResponse;
-  operatorStatus: OperatorStatusResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

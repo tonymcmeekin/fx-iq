@@ -264,7 +264,6 @@ function App() {
   const {
     readiness,
     explanation,
-    operatorStatus,
     decision,
     scanner,
   } = state.data;
@@ -272,7 +271,7 @@ function App() {
   const isRefreshing = state.status === "refreshing";
   const warningCount =
     readiness.warnings.length +
-    operatorStatus.observation_integrity_warnings.length;
+    readiness.observation_integrity_warnings.length;
 
   return (
     <main className="dashboard">
@@ -341,21 +340,21 @@ function App() {
           <span>Observation integrity</span>
           <strong>
             {formatLabel(
-              operatorStatus.observation_integrity_status ??
+              readiness.observation_integrity_status ??
                 "Unavailable",
             )}
           </strong>
           <div>
             <span
               className={
-                operatorStatus.observation_integrity_status ===
+                readiness.observation_integrity_status ===
                 "HEALTHY"
                   ? "badge badge--positive"
                   : "badge badge--danger"
               }
             >
-              {operatorStatus.observations_recorded} observations ·{" "}
-              {operatorStatus.observation_outcomes_populated} outcomes
+              {readiness.observations_recorded} observations ·{" "}
+              {readiness.observation_outcomes_populated} outcomes
             </span>
           </div>
         </article>
@@ -733,14 +732,14 @@ function App() {
                 </>
               )}
 
-              {operatorStatus.observation_integrity_warnings
+              {readiness.observation_integrity_warnings
                 .length > 0 && (
                 <>
                   <h3 className="warning-group-title">
                     Observation evidence
                   </h3>
                   <ul>
-                    {operatorStatus.observation_integrity_warnings.map(
+                    {readiness.observation_integrity_warnings.map(
                       (item) => <li key={item}>{item}</li>,
                     )}
                   </ul>
