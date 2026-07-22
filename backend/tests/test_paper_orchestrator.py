@@ -332,6 +332,77 @@ def test_actionable_signal_becomes_pending_entry(
     ] == POLICY_FINGERPRINT
 
 
+def test_repeated_signal_advances_existing_pending_entry(
+    tmp_path,
+):
+    ledger_path = tmp_path / "events.jsonl"
+    state_path = tmp_path / "state.json"
+    journal_path = tmp_path / "transition.json"
+    candle_directory = tmp_path / "candles"
+
+    first_candles = make_candles(
+        "EUR_GBP",
+        breakout=True,
+    )
+
+    run_controlled_daily_session(
+        api_token="test-token",
+        session_date=SESSION_DATE,
+        ledger_path=ledger_path,
+        state_path=state_path,
+        journal_path=journal_path,
+        candle_store_directory=candle_directory,
+        observation_store_path=None,
+        protocol=make_protocol(),
+        collector=(lambda **_: first_candles),
+        policy_verifier=(lambda: POLICY_FINGERPRINT),
+        session_time_utc=SESSION_TIME,
+        software_commit="test-commit",
+    )
+
+    next_candle = Candle(
+        symbol="EUR_GBP",
+        timeframe="D",
+        timestamp=(
+            first_candles[-1].timestamp
+            + timedelta(days=1)
+        ),
+        open=1.1900,
+        high=1.2100,
+        low=1.1800,
+        close=1.2000,
+        volume=2000,
+    )
+
+    result = run_controlled_daily_session(
+        api_token="test-token",
+        session_date=(
+            SESSION_DATE + timedelta(days=1)
+        ),
+        ledger_path=ledger_path,
+        state_path=state_path,
+        journal_path=journal_path,
+        candle_store_directory=candle_directory,
+        observation_store_path=None,
+        protocol=make_protocol(),
+        collector=(
+            lambda **_: [
+                *first_candles,
+                next_candle,
+            ]
+        ),
+        policy_verifier=(lambda: POLICY_FINGERPRINT),
+        session_time_utc=(
+            SESSION_TIME + timedelta(days=1)
+        ),
+        software_commit="test-commit",
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["positions_opened"] == 1
+    assert result["broker_orders_sent"] == 0
+
+
 def test_hold_signal_does_not_create_pending_entry(
     tmp_path,
 ):

@@ -347,6 +347,16 @@ def run_controlled_daily_session(
             "market"
         ]
 
+        if (
+            market in staged_state[
+                "pending_entries"
+            ]
+            or market in staged_state[
+                "open_positions"
+            ]
+        ):
+            continue
+
         latest_candle = (
             market_candles[
                 market
