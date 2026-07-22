@@ -279,6 +279,7 @@ function App() {
     explanation,
     cockpit,
     alerts,
+    portfolio,
     decision,
     scanner,
   } = state.data;
@@ -291,6 +292,12 @@ function App() {
   const latestMarketTimestamp = cockpit.markets.find(
     (market) => market.latest_complete_timestamp,
   )?.latest_complete_timestamp;
+  const maximumAlignedReturns = Math.max(
+    0,
+    ...portfolio.correlations.map(
+      (correlation) => correlation.aligned_return_count,
+    ),
+  );
 
   return (
     <main className="dashboard">
@@ -521,6 +528,114 @@ function App() {
         <p className="evidence-safety">
           Alerts describe verified state transitions only. They cannot place,
           modify, or close orders.
+        </p>
+      </section>
+
+      <section className="panel portfolio-intelligence">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Paper portfolio context</span>
+            <h2>Exposure & correlation</h2>
+          </div>
+          <span
+            className={
+              portfolio.status === "AVAILABLE"
+                ? "badge badge--positive"
+                : "badge badge--warning"
+            }
+          >
+            {formatLabel(portfolio.status)}
+          </span>
+        </div>
+
+        <div className="portfolio-metrics">
+          <div>
+            <span>Candidate risk</span>
+            <strong>{portfolio.candidate_gross_risk_percent.toFixed(2)}%</strong>
+            <small>Gross paper risk</small>
+          </div>
+          <div>
+            <span>Shadow risk</span>
+            <strong>{portfolio.shadow_gross_risk_percent.toFixed(2)}%</strong>
+            <small>Frozen comparison account</small>
+          </div>
+          <div>
+            <span>Correlation coverage</span>
+            <strong>
+              {portfolio.available_correlation_pair_count} /{" "}
+              {portfolio.correlation_pair_count}
+            </strong>
+            <small>Market pairs interpretable</small>
+          </div>
+          <div>
+            <span>Active paper state</span>
+            <strong>
+              {portfolio.pending_entry_count} pending ·{" "}
+              {portfolio.open_position_count} open
+            </strong>
+            <small>Broker orders: {portfolio.broker_orders_sent}</small>
+          </div>
+        </div>
+
+        <div className="exposure-columns">
+          <div>
+            <h3>Candidate currency legs</h3>
+            <div className="exposure-list">
+              {portfolio.candidate_currency_exposure.length === 0 ? (
+                <span className="empty-exposure">No active exposure</span>
+              ) : (
+                portfolio.candidate_currency_exposure.map((exposure) => (
+                  <span className="exposure-chip" key={exposure.currency}>
+                    <strong>{exposure.currency}</strong>
+                    {exposure.side} {exposure.absolute_risk_percent.toFixed(2)}%
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+          <div>
+            <h3>Shadow currency legs</h3>
+            <div className="exposure-list">
+              {portfolio.shadow_currency_exposure.length === 0 ? (
+                <span className="empty-exposure">No active exposure</span>
+              ) : (
+                portfolio.shadow_currency_exposure.map((exposure) => (
+                  <span className="exposure-chip" key={exposure.currency}>
+                    <strong>{exposure.currency}</strong>
+                    {exposure.side} {exposure.absolute_risk_percent.toFixed(2)}%
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {portfolio.status === "INSUFFICIENT_DATA" && (
+          <div className="correlation-notice">
+            <strong>Correlation intentionally withheld</strong>
+            <span>
+              {maximumAlignedReturns} aligned returns are available;{" "}
+              {portfolio.minimum_aligned_returns_required} are required before
+              any pair is interpreted.
+            </span>
+          </div>
+        )}
+
+        {portfolio.high_correlation_pairs.length > 0 && (
+          <div className="correlation-pairs">
+            <h3>High-correlation pairs</h3>
+            {portfolio.high_correlation_pairs.map((pair) => (
+              <span key={`${pair.left_market}:${pair.right_market}`}>
+                {pair.left_market.replace("_", "/")} ↔{" "}
+                {pair.right_market.replace("_", "/")}: {pair.correlation}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <p className="evidence-safety">
+          Exposure is descriptive paper-risk context. It does not resize,
+          approve, or execute any position.
         </p>
       </section>
 

@@ -126,6 +126,49 @@ export interface OperatorAlertReportResponse {
   protocol_live_trading_permitted: false;
 }
 
+export interface CurrencyExposure {
+  currency: string;
+  signed_risk_percent: number;
+  side: "LONG" | "SHORT" | "FLAT";
+  absolute_risk_percent: number;
+}
+
+export interface MarketCorrelation {
+  left_market: string;
+  right_market: string;
+  aligned_return_count: number;
+  minimum_return_count: number;
+  status: "AVAILABLE" | "INSUFFICIENT_DATA";
+  correlation: number | null;
+  absolute_correlation: number | null;
+  strength: string;
+}
+
+export interface PortfolioIntelligenceResponse {
+  status: string;
+  generated_at_utc: string;
+  methodology: string;
+  minimum_aligned_returns_required: number;
+  market_count: number;
+  correlation_pair_count: number;
+  available_correlation_pair_count: number;
+  high_correlation_pair_count: number;
+  pending_entry_count: number;
+  open_position_count: number;
+  candidate_gross_risk_percent: number;
+  shadow_gross_risk_percent: number;
+  candidate_currency_gross_exposure_percent: number;
+  shadow_currency_gross_exposure_percent: number;
+  positions: EvidencePosition[];
+  candidate_currency_exposure: CurrencyExposure[];
+  shadow_currency_exposure: CurrencyExposure[];
+  correlations: MarketCorrelation[];
+  high_correlation_pairs: MarketCorrelation[];
+  broker_orders_sent: number;
+  safe_for_live_trading: false;
+  protocol_live_trading_permitted: false;
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -173,6 +216,7 @@ export interface DashboardData {
   explanation: ReadinessExplanationResponse;
   cockpit: EvidenceCockpitResponse;
   alerts: OperatorAlertReportResponse;
+  portfolio: PortfolioIntelligenceResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

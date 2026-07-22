@@ -15,6 +15,7 @@ def test_analytics_success_responses_use_named_models():
     expected_models = {
         "/analytics/alerts": "OperatorAlertReportResponse",
         "/analytics/evidence-cockpit": "EvidenceCockpitResponse",
+        "/analytics/portfolio-intelligence": "PortfolioIntelligenceResponse",
         "/analytics/strategy-attribution": ("StrategyAttributionResponse"),
         "/analytics/prospective-paper-health": ("ProspectivePaperHealthResponse"),
         "/analytics/operator-status": ("OperatorStatusResponse"),
@@ -36,6 +37,7 @@ def test_analytics_conflicts_document_error_model():
     for path in (
         "/analytics/alerts",
         "/analytics/evidence-cockpit",
+        "/analytics/portfolio-intelligence",
         "/analytics/strategy-attribution",
         "/analytics/prospective-paper-health",
         "/analytics/operator-status",
@@ -53,6 +55,7 @@ def test_real_analytics_responses_match_contracts():
     for path in (
         "/analytics/alerts",
         "/analytics/evidence-cockpit",
+        "/analytics/portfolio-intelligence",
         "/analytics/strategy-attribution",
         "/analytics/prospective-paper-health",
         "/analytics/operator-status",

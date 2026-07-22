@@ -342,3 +342,35 @@ class OperatorAlertReportResponse(AnalyticsSafetyResponse):
     critical_alert_count: int = Field(default=0, ge=0)
     warning_alert_count: int = Field(default=0, ge=0)
     alerts: list[OperatorAlert] = Field(default_factory=list)
+
+
+class PortfolioIntelligenceResponse(AnalyticsSafetyResponse):
+    """Read-only paper portfolio exposure and correlation response."""
+
+    schema_version: int = 1
+    status: str
+    generated_at_utc: str
+    methodology: str
+    minimum_aligned_returns_required: int = Field(ge=3)
+    market_count: int = Field(default=0, ge=0)
+    correlation_pair_count: int = Field(default=0, ge=0)
+    available_correlation_pair_count: int = Field(default=0, ge=0)
+    high_correlation_pair_count: int = Field(default=0, ge=0)
+    pending_entry_count: int = Field(default=0, ge=0)
+    open_position_count: int = Field(default=0, ge=0)
+    candidate_gross_risk_percent: float = Field(default=0, ge=0)
+    shadow_gross_risk_percent: float = Field(default=0, ge=0)
+    candidate_currency_gross_exposure_percent: float = Field(default=0, ge=0)
+    shadow_currency_gross_exposure_percent: float = Field(default=0, ge=0)
+    positions: list[dict[str, Any]] = Field(default_factory=list)
+    candidate_currency_exposure: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+    shadow_currency_exposure: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+    correlations: list[dict[str, Any]] = Field(default_factory=list)
+    high_correlation_pairs: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+    broker_orders_sent: int = Field(default=0, ge=0)

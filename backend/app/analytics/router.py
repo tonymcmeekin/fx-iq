@@ -22,6 +22,7 @@ from app.analytics.models import (
     EvidenceCockpitResponse,
     OperatorAlertReportResponse,
     OperatorStatusResponse,
+    PortfolioIntelligenceResponse,
     ProspectivePaperHealthResponse,
     StrategyAttributionResponse,
 )
@@ -40,6 +41,10 @@ from app.analytics.overview_reporting import (
 )
 from app.analytics.overview_reporting import (
     perform_report as perform_overview_report,
+)
+from app.analytics.portfolio_intelligence_reporting import (
+    PortfolioIntelligenceError,
+    build_portfolio_intelligence_report,
 )
 from app.analytics.prospective_health_reporting import (
     ProspectiveHealthReportError,
@@ -72,6 +77,31 @@ def get_operator_alerts() -> dict[str, Any]:
     try:
         return build_operator_alert_report()
     except OperatorAlertReportError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
+
+
+@router.get(
+    "/portfolio-intelligence",
+    response_model=PortfolioIntelligenceResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def get_portfolio_intelligence() -> dict[str, Any]:
+    """Return verified paper exposure and return correlation context."""
+    try:
+        return build_portfolio_intelligence_report()
+    except PortfolioIntelligenceError as error:
         raise HTTPException(
             status_code=409,
             detail={
