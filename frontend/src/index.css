@@ -243,6 +243,46 @@ button {
   font-weight: 700;
 }
 
+.ai-provider-preflight {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  border: 1px solid #355e5a;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.ai-provider-preflight > div {
+  min-width: 0;
+}
+
+.ai-provider-preflight span,
+.ai-provider-preflight strong {
+  display: block;
+}
+
+.ai-provider-preflight span {
+  margin-bottom: 0.3rem;
+  color: #91a1b5;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.ai-provider-preflight strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.ai-provider-preflight p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .ai-briefing-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -955,6 +995,10 @@ footer {
 
   .ai-briefing-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ai-provider-preflight {
+    grid-template-columns: 1fr 1fr;
   }
 
   .ai-briefing-grid article:last-child {

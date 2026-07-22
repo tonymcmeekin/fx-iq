@@ -12,11 +12,13 @@ from app.ai_briefing.models import (
     EvidenceBriefingResponse,
     InsightAppendResponse,
     InsightListResponse,
+    ProviderReadinessResponse,
 )
 from app.ai_briefing.service import (
     EvidenceBriefingError,
     build_ai_governance_report,
     build_evidence_briefing,
+    build_provider_readiness_report,
     generate_and_store_insight,
     list_insights,
 )
@@ -71,3 +73,9 @@ def get_ai_governance() -> dict[str, Any]:
         return build_ai_governance_report()
     except EvidenceBriefingError as error:
         raise _conflict(error) from error
+
+
+@router.get("/provider-readiness", response_model=ProviderReadinessResponse)
+def get_provider_readiness() -> dict[str, Any]:
+    """Return a secret-free local preflight without contacting a provider."""
+    return build_provider_readiness_report()

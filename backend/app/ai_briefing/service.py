@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -35,11 +36,47 @@ class EvidenceBriefingError(RuntimeError):
 
 
 def hosted_provider_available() -> bool:
-    return (
-        os.getenv("AI_BRIEFING_HOSTED_ENABLED", "").lower() == "true"
-        and bool(os.getenv("OPENAI_API_KEY"))
-        and bool(os.getenv("AI_BRIEFING_OPENAI_MODEL"))
+    return build_provider_readiness_report()["status"] == "READY"
+
+
+def build_provider_readiness_report(
+    *, environment: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Report configuration presence without returning any secret value."""
+    values = os.environ if environment is None else environment
+    hosted_requested = values.get("AI_BRIEFING_HOSTED_ENABLED", "").lower() == "true"
+    api_key_configured = bool(values.get("OPENAI_API_KEY"))
+    configured_model = values.get("AI_BRIEFING_OPENAI_MODEL") or None
+    blocking_reasons = []
+    if not hosted_requested:
+        blocking_reasons.append("Hosted generation has not been explicitly enabled.")
+    if not api_key_configured:
+        blocking_reasons.append("The OpenAI API key is not configured.")
+    if configured_model is None:
+        blocking_reasons.append("The hosted briefing model is not configured.")
+    status = (
+        "READY" if not blocking_reasons else "DISABLED" if not hosted_requested else "INCOMPLETE"
     )
+    return {
+        "schema_version": 1,
+        "status": status,
+        "offline_provider_ready": True,
+        "hosted_provider_requested": hosted_requested,
+        "api_key_configured": api_key_configured,
+        "model_configured": configured_model is not None,
+        "configured_model": configured_model,
+        "endpoint": "https://api.openai.com/v1/responses",
+        "request_storage_enabled": False,
+        "sanitized_input_only": True,
+        "explicit_generation_required": True,
+        "required_settings": [
+            "AI_BRIEFING_HOSTED_ENABLED=true",
+            "AI_BRIEFING_OPENAI_MODEL=<model-id>",
+            "OPENAI_API_KEY=<secret>",
+        ],
+        "blocking_reasons": blocking_reasons,
+        "safety": BriefingSafety().model_dump(mode="json"),
+    }
 
 
 def _reports() -> tuple[dict[str, Any], ...]:

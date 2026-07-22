@@ -2,6 +2,7 @@ import type {
   AiInsightAppendResponse,
   AiInsightListResponse,
   AiGovernanceResponse,
+  AiProviderReadinessResponse,
   AnnotationAppendResponse,
   AnnotationCategory,
   AnnotationListResponse,
@@ -128,7 +129,7 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 export async function fetchDashboardData(
   scannerSource: ScannerSource = "synthetic",
 ): Promise<DashboardData> {
-  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, aiInsights, aiGovernance, decision, scanner] =
+  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, aiInsights, aiGovernance, aiProviderReadiness, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
       requestJson<ReadinessExplanationResponse>(
@@ -148,6 +149,7 @@ export async function fetchDashboardData(
       requestJson<EvidenceBriefingResponse>("/ai/evidence-briefing"),
       fetchAiInsights(),
       fetchAiGovernance(),
+      fetchAiProviderReadiness(),
       fetchDecisionEvaluation(),
       fetchScannerOpportunities(scannerSource),
     ]);
@@ -163,6 +165,7 @@ export async function fetchDashboardData(
     aiBriefing,
     aiInsights,
     aiGovernance,
+    aiProviderReadiness,
     decision,
     scanner,
   };
@@ -174,6 +177,10 @@ export async function fetchAiInsights(): Promise<AiInsightListResponse> {
 
 export async function fetchAiGovernance(): Promise<AiGovernanceResponse> {
   return requestJson<AiGovernanceResponse>("/ai/governance");
+}
+
+export async function fetchAiProviderReadiness(): Promise<AiProviderReadinessResponse> {
+  return requestJson<AiProviderReadinessResponse>("/ai/provider-readiness");
 }
 
 export async function saveOfflineAiInsight(

@@ -19,6 +19,7 @@ from app.ai_briefing.service import (
     EvidenceBriefingError,
     build_ai_governance_report,
     build_evidence_briefing,
+    build_provider_readiness_report,
     generate_and_store_insight,
 )
 from app.ai_briefing.store import InsightStoreError, read_insights
@@ -352,3 +353,30 @@ def test_empty_governance_is_healthy_and_read_only(tmp_path):
     assert governance["insight_count"] == 0
     assert governance["safety"]["network_calls_made"] == 0
     assert governance["safety"]["files_changed"] == 0
+
+
+def test_provider_preflight_is_disabled_and_secret_free_by_default():
+    result = build_provider_readiness_report(environment={})
+
+    assert result["status"] == "DISABLED"
+    assert result["offline_provider_ready"] is True
+    assert result["hosted_provider_requested"] is False
+    assert result["api_key_configured"] is False
+    assert result["request_storage_enabled"] is False
+    assert result["safety"]["network_calls_made"] == 0
+
+
+def test_provider_preflight_reports_presence_without_exposing_key():
+    result = build_provider_readiness_report(
+        environment={
+            "AI_BRIEFING_HOSTED_ENABLED": "true",
+            "AI_BRIEFING_OPENAI_MODEL": "configured-model",
+            "OPENAI_API_KEY": "super-secret-key",
+        }
+    )
+
+    assert result["status"] == "READY"
+    assert result["configured_model"] == "configured-model"
+    assert result["api_key_configured"] is True
+    assert result["blocking_reasons"] == []
+    assert "super-secret-key" not in json.dumps(result)

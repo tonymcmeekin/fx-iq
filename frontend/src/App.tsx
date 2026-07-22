@@ -454,6 +454,7 @@ function App() {
     aiBriefing,
     aiInsights,
     aiGovernance,
+    aiProviderReadiness,
     decision,
     scanner,
   } = state.data;
@@ -687,6 +688,38 @@ function App() {
         </div>
 
         <p className="ai-headline">{aiBriefing.briefing.headline}</p>
+
+        <div className="ai-provider-preflight">
+          <div>
+            <span>Hosted provider</span>
+            <strong>{formatLabel(aiProviderReadiness.status)}</strong>
+          </div>
+          <div>
+            <span>API key</span>
+            <strong>
+              {aiProviderReadiness.api_key_configured
+                ? "Configured"
+                : "Not configured"}
+            </strong>
+          </div>
+          <div>
+            <span>Model</span>
+            <strong>
+              {aiProviderReadiness.configured_model ?? "Not configured"}
+            </strong>
+          </div>
+          <div>
+            <span>Request storage</span>
+            <strong>
+              {aiProviderReadiness.request_storage_enabled
+                ? "Enabled"
+                : "Disabled"}
+            </strong>
+          </div>
+          {aiProviderReadiness.blocking_reasons.length > 0 && (
+            <p>{aiProviderReadiness.blocking_reasons.join(" ")}</p>
+          )}
+        </div>
 
         <div className="ai-briefing-grid">
           <article>

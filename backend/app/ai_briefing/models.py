@@ -137,3 +137,22 @@ class AiGovernanceResponse(BriefingModel):
     prompt_fingerprints: list[str]
     review_rule: str
     safety: BriefingSafety
+
+
+class ProviderReadinessResponse(BriefingModel):
+    """Secret-free local preflight for the optional hosted provider."""
+
+    schema_version: int = 1
+    status: Literal["READY", "DISABLED", "INCOMPLETE"]
+    offline_provider_ready: Literal[True] = True
+    hosted_provider_requested: bool
+    api_key_configured: bool
+    model_configured: bool
+    configured_model: str | None
+    endpoint: Literal["https://api.openai.com/v1/responses"] = "https://api.openai.com/v1/responses"
+    request_storage_enabled: Literal[False] = False
+    sanitized_input_only: Literal[True] = True
+    explicit_generation_required: Literal[True] = True
+    required_settings: list[str]
+    blocking_reasons: list[str]
+    safety: BriefingSafety

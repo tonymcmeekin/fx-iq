@@ -325,6 +325,22 @@ export interface AiGovernanceResponse {
   safety: EvidenceBriefingResponse["safety"];
 }
 
+export interface AiProviderReadinessResponse {
+  status: "READY" | "DISABLED" | "INCOMPLETE";
+  offline_provider_ready: true;
+  hosted_provider_requested: boolean;
+  api_key_configured: boolean;
+  model_configured: boolean;
+  configured_model: string | null;
+  endpoint: "https://api.openai.com/v1/responses";
+  request_storage_enabled: false;
+  sanitized_input_only: true;
+  explicit_generation_required: true;
+  required_settings: string[];
+  blocking_reasons: string[];
+  safety: EvidenceBriefingResponse["safety"];
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -378,6 +394,7 @@ export interface DashboardData {
   aiBriefing: EvidenceBriefingResponse;
   aiInsights: AiInsightListResponse;
   aiGovernance: AiGovernanceResponse;
+  aiProviderReadiness: AiProviderReadinessResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }
