@@ -17,8 +17,13 @@ from app.ai_briefing.providers import (
     EvidenceBriefingProvider,
     OpenAIResponsesProvider,
 )
-from app.ai_briefing.quality import validate_briefing_quality
-from app.ai_briefing.store import append_insight, read_insights
+from app.ai_briefing.quality import briefing_fingerprint, validate_briefing_quality
+from app.ai_briefing.store import (
+    append_insight,
+    append_rejection,
+    read_insights,
+    read_rejections,
+)
 from app.analytics.evidence_cockpit_reporting import build_evidence_cockpit
 from app.analytics.operator_alert_reporting import build_operator_alert_report
 from app.analytics.outcome_explorer_reporting import build_outcome_explorer_report
@@ -30,10 +35,35 @@ from app.operator_review.service import (
 
 BACKEND_DIRECTORY = Path(__file__).resolve().parents[2]
 DEFAULT_INSIGHT_PATH = BACKEND_DIRECTORY / "paper_ledger" / "ai_evidence_insights.jsonl"
+DEFAULT_REJECTION_PATH = BACKEND_DIRECTORY / "paper_ledger" / "ai_briefing_rejections.jsonl"
 
 
 class EvidenceBriefingError(RuntimeError):
     pass
+
+
+class QualityGateRejected(EvidenceBriefingError):
+    """Carry safe rejection metadata to the explicit-generation audit boundary."""
+
+    def __init__(
+        self,
+        *,
+        failures: list[str],
+        input_fingerprint: str,
+        output_fingerprint: str,
+        provider_mode: str,
+        model: str,
+        network_calls_made: int,
+    ) -> None:
+        super().__init__(
+            "AI briefing failed deterministic quality checks: " + ", ".join(failures)
+        )
+        self.failures = failures
+        self.input_fingerprint = input_fingerprint
+        self.output_fingerprint = output_fingerprint
+        self.provider_mode = provider_mode
+        self.model = model
+        self.network_calls_made = network_calls_made
 
 
 def hosted_provider_available() -> bool:
@@ -106,15 +136,6 @@ def _snapshot(
     )
 
 
-def _validate_citations(provider: EvidenceBriefingProvider, briefing, snapshot) -> None:
-    allowed = {item.evidence_id for item in snapshot.evidence_items}
-    cited = {citation.evidence_id for citation in briefing.citations}
-    if not cited <= allowed:
-        raise EvidenceBriefingError(
-            f"{provider.mode} provider cited evidence outside the sanitized snapshot."
-        )
-
-
 def _provider(mode: str) -> EvidenceBriefingProvider:
     if mode == "OFFLINE":
         return DeterministicEvidenceProvider()
@@ -142,12 +163,15 @@ def build_evidence_briefing(
     try:
         snapshot = _snapshot(reports, resolved_now)
         briefing = selected.generate(snapshot)
-        _validate_citations(selected, briefing, snapshot)
         quality_gate = validate_briefing_quality(briefing, snapshot)
         if quality_gate.status != "PASS":
-            raise EvidenceBriefingError(
-                "AI briefing failed deterministic quality checks: "
-                + ", ".join(quality_gate.failures)
+            raise QualityGateRejected(
+                failures=quality_gate.failures,
+                input_fingerprint=snapshot_fingerprint(snapshot),
+                output_fingerprint=briefing_fingerprint(briefing),
+                provider_mode=selected.mode,
+                model=selected.model,
+                network_calls_made=selected.network_calls_made,
             )
     except (OSError, RuntimeError, ValueError) as error:
         if isinstance(error, EvidenceBriefingError):
@@ -174,6 +198,7 @@ def generate_and_store_insight(
     request: BriefingGenerateRequest,
     *,
     insight_path: Path = DEFAULT_INSIGHT_PATH,
+    rejection_path: Path = DEFAULT_REJECTION_PATH,
     reports: tuple[dict[str, Any], ...] | None = None,
     provider: EvidenceBriefingProvider | None = None,
     now_utc: datetime | None = None,
@@ -200,6 +225,27 @@ def generate_and_store_insight(
             briefing=response["briefing"],
             quality_gate=response["quality_gate"],
         )
+    except QualityGateRejected as error:
+        try:
+            append_rejection(
+                rejection_path,
+                idempotency_key=request.idempotency_key,
+                created_at_utc=resolved_now,
+                provider_mode=error.provider_mode,
+                model=error.model,
+                prompt_fingerprint=PROMPT_FINGERPRINT,
+                input_fingerprint=error.input_fingerprint,
+                output_fingerprint=error.output_fingerprint,
+                failed_checks=error.failures,
+                network_calls_made=error.network_calls_made,
+            )
+        except (OSError, RuntimeError, ValueError) as audit_error:
+            raise EvidenceBriefingError(
+                "AI output was rejected and its content-free audit record could not be written."
+            ) from audit_error
+        raise EvidenceBriefingError(
+            f"{error} Rejection metadata was recorded without rejected content."
+        ) from error
     except (OSError, RuntimeError, ValueError, BriefingProviderError) as error:
         if isinstance(error, EvidenceBriefingError):
             raise
@@ -231,11 +277,13 @@ def list_insights(*, insight_path: Path = DEFAULT_INSIGHT_PATH) -> dict[str, Any
 def build_ai_governance_report(
     *,
     insight_path: Path = DEFAULT_INSIGHT_PATH,
+    rejection_path: Path = DEFAULT_REJECTION_PATH,
     annotation_path: Path = DEFAULT_ANNOTATION_PATH,
 ) -> dict[str, Any]:
     """Verify AI insights against immutable human-review annotations."""
     try:
         insights = read_insights(insight_path)
+        rejections = read_rejections(rejection_path)
         annotations = list_operator_annotations(annotation_path=annotation_path)["annotations"]
     except (OSError, RuntimeError, ValueError) as error:
         raise EvidenceBriefingError(str(error)) from error
@@ -258,6 +306,13 @@ def build_ai_governance_report(
         "reviewed_insight_count": len(reviewed),
         "unreviewed_insight_count": len(unreviewed),
         "hosted_insight_count": sum(insight.provider_mode == "OPENAI" for insight in insights),
+        "rejected_output_count": len(rejections),
+        "hosted_rejected_output_count": sum(
+            rejection.provider_mode == "OPENAI" for rejection in rejections
+        ),
+        "latest_rejection_at_utc": (
+            rejections[-1].created_at_utc if rejections else None
+        ),
         "orphaned_review_count": len(orphaned),
         "unreviewed_insight_ids": unreviewed,
         "orphaned_review_subject_ids": orphaned,

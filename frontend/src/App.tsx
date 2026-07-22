@@ -927,7 +927,8 @@ function App() {
               }
             >
               {aiGovernance.reviewed_insight_count} reviewed ·{" "}
-              {aiGovernance.unreviewed_insight_count} pending
+              {aiGovernance.unreviewed_insight_count} pending ·{" "}
+              {aiGovernance.rejected_output_count} blocked
             </span>
           </div>
           {aiInsights.insights.length === 0 ? (
@@ -1002,6 +1003,11 @@ function App() {
             </p>
           )}
           <p className="ai-governance-rule">{aiGovernance.review_rule}</p>
+          <p className="ai-governance-rule">
+            Output gate audit: {aiGovernance.rejected_output_count} rejected
+            generation{aiGovernance.rejected_output_count === 1 ? "" : "s"}.
+            Rejected content is never stored.
+          </p>
         </div>
 
         <p className="evidence-safety">

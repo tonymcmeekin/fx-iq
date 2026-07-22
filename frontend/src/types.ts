@@ -326,6 +326,9 @@ export interface AiGovernanceResponse {
   reviewed_insight_count: number;
   unreviewed_insight_count: number;
   hosted_insight_count: number;
+  rejected_output_count: number;
+  hosted_rejected_output_count: number;
+  latest_rejection_at_utc: string | null;
   orphaned_review_count: number;
   unreviewed_insight_ids: string[];
   orphaned_review_subject_ids: string[];

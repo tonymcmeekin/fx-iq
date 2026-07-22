@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from app.ai_briefing.models import (
@@ -30,6 +31,11 @@ SPARSE_ACKNOWLEDGEMENT_MARKERS = (
     "required completed outcomes",
     "not enough evidence",
 )
+
+
+def briefing_fingerprint(briefing: BriefingDraft) -> str:
+    """Fingerprint rejected content without retaining the content itself."""
+    return hashlib.sha256(briefing.model_dump_json().encode("utf-8")).hexdigest()
 
 
 def validate_briefing_quality(

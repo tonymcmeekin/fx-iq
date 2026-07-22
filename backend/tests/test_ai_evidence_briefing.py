@@ -23,7 +23,12 @@ from app.ai_briefing.service import (
     build_provider_readiness_report,
     generate_and_store_insight,
 )
-from app.ai_briefing.store import InsightStoreError, read_insights
+from app.ai_briefing.store import (
+    InsightStoreError,
+    append_rejection,
+    read_insights,
+    read_rejections,
+)
 from app.main import app
 from app.operator_review.models import AnnotationRequest
 from app.operator_review.service import create_operator_annotation
@@ -140,7 +145,7 @@ def test_quality_gate_rejects_trading_language_and_sensitive_patterns():
     assert validate_briefing_quality(valid, snapshot).status == "PASS"
 
     unsafe = valid.model_copy(deep=True)
-    unsafe.headline = "Buy now and place an order for account 101-004-39785237-001."
+    unsafe.headline = "Buy now and place an order for account 999-888-12345678-777."
     gate = validate_briefing_quality(unsafe, snapshot)
 
     assert gate.status == "FAIL"
@@ -152,6 +157,12 @@ def test_quality_gate_rejects_trading_language_and_sensitive_patterns():
     grounding_gate = validate_briefing_quality(ungrounded, snapshot)
     assert grounding_gate.status == "FAIL"
     assert grounding_gate.core_evidence_cited is False
+
+    invalid_citation = valid.model_copy(deep=True)
+    invalid_citation.citations[0].evidence_id = "outside-sanitized-snapshot"
+    citation_gate = validate_briefing_quality(invalid_citation, snapshot)
+    assert citation_gate.status == "FAIL"
+    assert citation_gate.citations_valid is False
 
     class UnsafeProvider:
         mode = "OPENAI"
@@ -167,6 +178,90 @@ def test_quality_gate_rejects_trading_language_and_sensitive_patterns():
             provider=UnsafeProvider(),
             now_utc=NOW,
         )
+
+
+def test_explicit_rejection_is_audited_without_rejected_content(tmp_path):
+    snapshot = build_sanitized_snapshot(
+        cockpit=reports()[0],
+        alerts=reports()[1],
+        portfolio=reports()[2],
+        outcomes=reports()[3],
+        annotations=reports()[4],
+        now_utc=NOW,
+    )
+    unsafe = DeterministicEvidenceProvider().generate(snapshot)
+    unsafe.headline = "Buy now for account 999-888-12345678-777."
+
+    class UnsafeProvider:
+        mode = "OPENAI"
+        model = "test-model"
+        network_calls_made = 1
+
+        def generate(self, snapshot):
+            return unsafe
+
+    request = BriefingGenerateRequest(
+        idempotency_key="rejected-briefing-1",
+        provider_mode="OPENAI",
+        external_transmission_confirmed=True,
+    )
+    insight_path = tmp_path / "insights.jsonl"
+    rejection_path = tmp_path / "rejections.jsonl"
+
+    for _ in range(2):
+        with pytest.raises(EvidenceBriefingError, match="metadata was recorded"):
+            generate_and_store_insight(
+                request,
+                insight_path=insight_path,
+                rejection_path=rejection_path,
+                reports=reports(),
+                provider=UnsafeProvider(),
+                now_utc=NOW,
+            )
+
+    rejections = read_rejections(rejection_path)
+    encoded = rejection_path.read_text()
+    assert len(rejections) == 1
+    assert rejections[0].provider_mode == "OPENAI"
+    assert rejections[0].network_calls_made == 1
+    assert "prohibited_trading_language_absent" in rejections[0].failed_checks
+    assert "sensitive_identifier_patterns_absent" in rejections[0].failed_checks
+    assert unsafe.headline not in encoded
+    assert "999-888-12345678-777" not in encoded
+    assert "rejected-briefing-1" not in encoded
+    assert not insight_path.exists()
+
+    governance = build_ai_governance_report(
+        insight_path=insight_path,
+        rejection_path=rejection_path,
+        annotation_path=tmp_path / "annotations.jsonl",
+    )
+    assert governance["status"] == "HEALTHY"
+    assert governance["rejected_output_count"] == 1
+    assert governance["hosted_rejected_output_count"] == 1
+    assert governance["latest_rejection_at_utc"] == NOW
+
+
+def test_rejection_audit_detects_tampering(tmp_path):
+    path = tmp_path / "rejections.jsonl"
+    append_rejection(
+        path,
+        idempotency_key="rejected-briefing-2",
+        created_at_utc=NOW,
+        provider_mode="OPENAI",
+        model="test-model",
+        prompt_fingerprint="a" * 64,
+        input_fingerprint="b" * 64,
+        output_fingerprint="c" * 64,
+        failed_checks=["prohibited_trading_language_absent"],
+        network_calls_made=1,
+    )
+    payload = json.loads(path.read_text())
+    payload["failed_checks"] = ["sensitive_identifier_patterns_absent"]
+    path.write_text(json.dumps(payload) + "\n")
+
+    with pytest.raises(InsightStoreError, match="hash mismatch"):
+        read_rejections(path)
 
 
 def test_hosted_adapter_sends_only_snapshot_and_requires_structured_output():
@@ -385,6 +480,7 @@ def test_human_annotation_links_to_verified_ai_insight(tmp_path):
 
     governance = build_ai_governance_report(
         insight_path=insight_path,
+        rejection_path=tmp_path / "rejections.jsonl",
         annotation_path=tmp_path / "annotations.jsonl",
     )
     assert governance["status"] == "HEALTHY"
@@ -405,6 +501,7 @@ def test_governance_requires_review_for_saved_insight(tmp_path):
 
     governance = build_ai_governance_report(
         insight_path=insight_path,
+        rejection_path=tmp_path / "rejections.jsonl",
         annotation_path=tmp_path / "annotations.jsonl",
     )
 
@@ -417,11 +514,13 @@ def test_governance_requires_review_for_saved_insight(tmp_path):
 def test_empty_governance_is_healthy_and_read_only(tmp_path):
     governance = build_ai_governance_report(
         insight_path=tmp_path / "insights.jsonl",
+        rejection_path=tmp_path / "rejections.jsonl",
         annotation_path=tmp_path / "annotations.jsonl",
     )
 
     assert governance["status"] == "HEALTHY"
     assert governance["insight_count"] == 0
+    assert governance["rejected_output_count"] == 0
     assert governance["safety"]["network_calls_made"] == 0
     assert governance["safety"]["files_changed"] == 0
 

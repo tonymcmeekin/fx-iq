@@ -142,6 +142,25 @@ class InsightListResponse(BriefingModel):
     safety: BriefingSafety
 
 
+class BriefingRejectionRecord(BriefingModel):
+    """Content-free audit metadata for an output blocked by the quality gate."""
+
+    schema_version: int = 1
+    sequence: int = Field(ge=1)
+    rejection_id: str = Field(min_length=64, max_length=64)
+    idempotency_fingerprint: str = Field(min_length=64, max_length=64)
+    created_at_utc: datetime
+    provider_mode: Literal["OFFLINE", "OPENAI"]
+    model: str
+    prompt_fingerprint: str = Field(min_length=64, max_length=64)
+    input_fingerprint: str = Field(min_length=64, max_length=64)
+    output_fingerprint: str = Field(min_length=64, max_length=64)
+    failed_checks: list[str] = Field(min_length=1)
+    network_calls_made: int = Field(ge=0)
+    previous_hash: str = Field(min_length=64, max_length=64)
+    record_hash: str = Field(min_length=64, max_length=64)
+
+
 class AiGovernanceResponse(BriefingModel):
     """Cross-chain review coverage for saved AI insights."""
 
@@ -151,6 +170,9 @@ class AiGovernanceResponse(BriefingModel):
     reviewed_insight_count: int = Field(ge=0)
     unreviewed_insight_count: int = Field(ge=0)
     hosted_insight_count: int = Field(ge=0)
+    rejected_output_count: int = Field(ge=0)
+    hosted_rejected_output_count: int = Field(ge=0)
+    latest_rejection_at_utc: datetime | None
     orphaned_review_count: int = Field(ge=0)
     unreviewed_insight_ids: list[str]
     orphaned_review_subject_ids: list[str]
