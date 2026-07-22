@@ -358,6 +358,14 @@ def test_fill_creates_candidate_and_shadow_pair():
     ]["entry_price"]
 
     assert pair[
+        "candidate_risk_percent"
+    ] == 0.25
+
+    assert pair[
+        "shadow_risk_percent"
+    ] == 0.5
+
+    assert pair[
         "broker_orders_submitted"
     ] == 0
 

@@ -687,6 +687,16 @@ def fill_pending_entry(
                 "entry_price"
             ]
         ),
+        "candidate_risk_percent": (
+            candidate_position[
+                "configured_risk_percent"
+            ]
+        ),
+        "shadow_risk_percent": (
+            shadow_position[
+                "configured_risk_percent"
+            ]
+        ),
         "candidate": (
             candidate_position
         ),

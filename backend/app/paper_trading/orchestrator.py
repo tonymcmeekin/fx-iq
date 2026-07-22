@@ -291,12 +291,23 @@ def run_controlled_daily_session(
             observation_store_path is not None
             and outcome_store_path is not None
         ):
-            outcome_summary = enrich_observation_outcomes(
+            outcome_result = enrich_observation_outcomes(
                 ledger_path=ledger_path,
                 observation_path=observation_store_path,
                 outcome_path=outcome_store_path,
                 candle_directory=candle_store_directory,
             )
+            outcome_summary = {
+                "close_events": outcome_result[
+                    "close_events"
+                ],
+                "outcomes_recorded": outcome_result[
+                    "outcomes_recorded"
+                ],
+                "outcome_duplicates": outcome_result[
+                    "outcome_duplicates"
+                ],
+            }
 
         state = read_runtime_state(
             state_path
@@ -627,12 +638,23 @@ def run_controlled_daily_session(
         observation_store_path is not None
         and outcome_store_path is not None
     ):
-        outcome_summary = enrich_observation_outcomes(
+        outcome_result = enrich_observation_outcomes(
             ledger_path=ledger_path,
             observation_path=observation_store_path,
             outcome_path=outcome_store_path,
             candle_directory=candle_store_directory,
         )
+        outcome_summary = {
+            "close_events": outcome_result[
+                "close_events"
+            ],
+            "outcomes_recorded": outcome_result[
+                "outcomes_recorded"
+            ],
+            "outcome_duplicates": outcome_result[
+                "outcome_duplicates"
+            ],
+        }
 
     return {
         **evaluation,

@@ -10,6 +10,9 @@ import pytest
 from app.intelligence.observation_store import (
     read_observations,
 )
+from app.intelligence.outcome_store import (
+    read_outcomes,
+)
 from app.market_data.models import Candle
 from app.paper_trading.ledger import (
     verify_ledger,
@@ -574,6 +577,111 @@ def test_repeated_signal_observation_is_not_accepted_twice(
         in observations[1].decision_reason
     )
     assert observations[1].portfolio_context.pending_entries_total == 1
+
+
+def test_closed_position_enriches_originating_observation_once(
+    tmp_path,
+):
+    ledger_path = tmp_path / "events.jsonl"
+    state_path = tmp_path / "state.json"
+    journal_path = tmp_path / "transition.json"
+    candle_directory = tmp_path / "candles"
+    observation_path = tmp_path / "observations.jsonl"
+    outcome_path = tmp_path / "outcomes.jsonl"
+    initial_candles = make_breakout_observation_candles()
+
+    shared = {
+        "api_token": "test-token",
+        "ledger_path": ledger_path,
+        "state_path": state_path,
+        "journal_path": journal_path,
+        "candle_store_directory": candle_directory,
+        "observation_store_path": observation_path,
+        "outcome_store_path": outcome_path,
+        "protocol": make_protocol(),
+        "policy_verifier": (lambda: POLICY_FINGERPRINT),
+        "software_commit": "test-commit",
+    }
+
+    first = run_controlled_daily_session(
+        **shared,
+        session_date=SESSION_DATE,
+        collector=(lambda **_: initial_candles),
+        session_time_utc=SESSION_TIME,
+    )
+
+    fill_candle = Candle(
+        symbol="EUR_GBP",
+        timeframe="D",
+        timestamp=(
+            initial_candles[-1].timestamp
+            + timedelta(days=1)
+        ),
+        open=1.1900,
+        high=1.2000,
+        low=1.1800,
+        close=1.1950,
+        volume=2000,
+    )
+    second_candles = [
+        *initial_candles,
+        fill_candle,
+    ]
+    second = run_controlled_daily_session(
+        **shared,
+        session_date=(SESSION_DATE + timedelta(days=1)),
+        collector=(lambda **_: second_candles),
+        session_time_utc=(SESSION_TIME + timedelta(days=1)),
+    )
+
+    close_candle = Candle(
+        symbol="EUR_GBP",
+        timeframe="D",
+        timestamp=(fill_candle.timestamp + timedelta(days=1)),
+        open=1.1950,
+        high=1.2400,
+        low=1.1900,
+        close=1.2300,
+        volume=2000,
+    )
+    all_candles = [
+        *second_candles,
+        close_candle,
+    ]
+    third = run_controlled_daily_session(
+        **shared,
+        session_date=(SESSION_DATE + timedelta(days=2)),
+        collector=(lambda **_: all_candles),
+        session_time_utc=(SESSION_TIME + timedelta(days=2)),
+    )
+    repeated = run_controlled_daily_session(
+        **shared,
+        session_date=(SESSION_DATE + timedelta(days=2)),
+        collector=(lambda **_: all_candles),
+        session_time_utc=(SESSION_TIME + timedelta(days=2)),
+    )
+
+    observations = read_observations(observation_path)
+    outcomes = read_outcomes(outcome_path)
+
+    assert first["pending_entries_total"] == 1
+    assert second["positions_opened"] == 1
+    assert third["positions_closed"] == 1
+    assert third["outcomes_recorded"] == 1
+    assert repeated["status"] == "ALREADY_COMPLETED"
+    assert repeated["outcome_duplicates"] == 1
+    assert len(outcomes) == 1
+    assert outcomes[0].observation_id == (
+        observations[0].observation_id
+    )
+    assert outcomes[0].originating_session_date == SESSION_DATE
+    assert outcomes[0].instrument == "EUR_GBP"
+    assert outcomes[0].exit_reason == "Take-profit hit."
+    assert outcomes[0].candles_held == 1
+    assert all(
+        result["broker_orders_sent"] == 0
+        for result in (first, second, third, repeated)
+    )
 
 
 def test_hold_signal_does_not_create_pending_entry(
