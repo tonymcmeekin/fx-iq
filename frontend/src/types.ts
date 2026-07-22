@@ -347,6 +347,8 @@ export interface AiProviderReadinessResponse {
   configured_model: string | null;
   endpoint: "https://api.openai.com/v1/responses";
   request_storage_enabled: false;
+  idempotent_replay_protection: true;
+  rejected_request_replay_protection: true;
   sanitized_input_only: true;
   explicit_generation_required: true;
   required_settings: string[];

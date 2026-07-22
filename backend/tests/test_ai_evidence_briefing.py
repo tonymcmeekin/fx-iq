@@ -169,7 +169,11 @@ def test_quality_gate_rejects_trading_language_and_sensitive_patterns():
         model = "test-model"
         network_calls_made = 1
 
+        def __init__(self):
+            self.generate_calls = 0
+
         def generate(self, snapshot):
+            self.generate_calls += 1
             return unsafe
 
     with pytest.raises(EvidenceBriefingError, match="quality checks"):
@@ -197,7 +201,11 @@ def test_explicit_rejection_is_audited_without_rejected_content(tmp_path):
         model = "test-model"
         network_calls_made = 1
 
+        def __init__(self):
+            self.generate_calls = 0
+
         def generate(self, snapshot):
+            self.generate_calls += 1
             return unsafe
 
     request = BriefingGenerateRequest(
@@ -208,16 +216,25 @@ def test_explicit_rejection_is_audited_without_rejected_content(tmp_path):
     insight_path = tmp_path / "insights.jsonl"
     rejection_path = tmp_path / "rejections.jsonl"
 
-    for _ in range(2):
-        with pytest.raises(EvidenceBriefingError, match="metadata was recorded"):
-            generate_and_store_insight(
-                request,
-                insight_path=insight_path,
-                rejection_path=rejection_path,
-                reports=reports(),
-                provider=UnsafeProvider(),
-                now_utc=NOW,
-            )
+    provider = UnsafeProvider()
+    with pytest.raises(EvidenceBriefingError, match="metadata was recorded"):
+        generate_and_store_insight(
+            request,
+            insight_path=insight_path,
+            rejection_path=rejection_path,
+            reports=reports(),
+            provider=provider,
+            now_utc=NOW,
+        )
+    with pytest.raises(EvidenceBriefingError, match="no provider call was made"):
+        generate_and_store_insight(
+            request,
+            insight_path=insight_path,
+            rejection_path=rejection_path,
+            reports=reports(),
+            provider=provider,
+            now_utc=NOW,
+        )
 
     rejections = read_rejections(rejection_path)
     encoded = rejection_path.read_text()
@@ -230,6 +247,7 @@ def test_explicit_rejection_is_audited_without_rejected_content(tmp_path):
     assert "999-888-12345678-777" not in encoded
     assert "rejected-briefing-1" not in encoded
     assert not insight_path.exists()
+    assert provider.generate_calls == 1
 
     governance = build_ai_governance_report(
         insight_path=insight_path,
@@ -321,6 +339,50 @@ def test_explicit_generation_is_hash_chained_and_idempotent(tmp_path):
     assert repeated["created"] is False
     assert first["safety"]["files_changed"] == 1
     assert repeated["safety"]["files_changed"] == 0
+    assert len(read_insights(path)) == 1
+
+
+def test_hosted_retry_returns_saved_insight_without_second_provider_call(tmp_path):
+    class CountingProvider:
+        mode = "OPENAI"
+        model = "test-model"
+        network_calls_made = 1
+
+        def __init__(self):
+            self.generate_calls = 0
+
+        def generate(self, generated_snapshot):
+            self.generate_calls += 1
+            return DeterministicEvidenceProvider().generate(generated_snapshot)
+
+    provider = CountingProvider()
+    request = BriefingGenerateRequest(
+        idempotency_key="hosted-replay-request-1",
+        provider_mode="OPENAI",
+        external_transmission_confirmed=True,
+    )
+    path = tmp_path / "insights.jsonl"
+
+    first = generate_and_store_insight(
+        request,
+        insight_path=path,
+        reports=reports(),
+        provider=provider,
+        now_utc=NOW,
+    )
+    repeated = generate_and_store_insight(
+        request,
+        insight_path=path,
+        reports=reports(),
+        provider=provider,
+        now_utc=NOW,
+    )
+
+    assert first["created"] is True
+    assert repeated["created"] is False
+    assert repeated["safety"]["network_calls_made"] == 0
+    assert repeated["safety"]["files_changed"] == 0
+    assert provider.generate_calls == 1
     assert len(read_insights(path)) == 1
 
 
@@ -533,6 +595,8 @@ def test_provider_preflight_is_disabled_and_secret_free_by_default():
     assert result["hosted_provider_requested"] is False
     assert result["api_key_configured"] is False
     assert result["request_storage_enabled"] is False
+    assert result["idempotent_replay_protection"] is True
+    assert result["rejected_request_replay_protection"] is True
     assert result["safety"]["network_calls_made"] == 0
 
 

@@ -795,6 +795,18 @@ function App() {
                 : "Disabled"}
             </strong>
           </div>
+          <div>
+            <span>Retry protection</span>
+            <strong>
+              {aiProviderReadiness.idempotent_replay_protection &&
+              aiProviderReadiness.rejected_request_replay_protection
+                ? "Enabled"
+                : "Unavailable"}
+            </strong>
+          </div>
+          <p>
+            Accepted or rejected request keys cannot call the provider twice.
+          </p>
           {aiProviderReadiness.blocking_reasons.length > 0 && (
             <p>{aiProviderReadiness.blocking_reasons.join(" ")}</p>
           )}

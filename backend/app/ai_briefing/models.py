@@ -194,6 +194,8 @@ class ProviderReadinessResponse(BriefingModel):
     configured_model: str | None
     endpoint: Literal["https://api.openai.com/v1/responses"] = "https://api.openai.com/v1/responses"
     request_storage_enabled: Literal[False] = False
+    idempotent_replay_protection: Literal[True] = True
+    rejected_request_replay_protection: Literal[True] = True
     sanitized_input_only: Literal[True] = True
     explicit_generation_required: Literal[True] = True
     required_settings: list[str]

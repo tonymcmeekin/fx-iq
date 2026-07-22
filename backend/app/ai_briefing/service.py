@@ -21,6 +21,8 @@ from app.ai_briefing.quality import briefing_fingerprint, validate_briefing_qual
 from app.ai_briefing.store import (
     append_insight,
     append_rejection,
+    idempotency_fingerprint,
+    idempotency_guard,
     read_insights,
     read_rejections,
 )
@@ -55,9 +57,7 @@ class QualityGateRejected(EvidenceBriefingError):
         model: str,
         network_calls_made: int,
     ) -> None:
-        super().__init__(
-            "AI briefing failed deterministic quality checks: " + ", ".join(failures)
-        )
+        super().__init__("AI briefing failed deterministic quality checks: " + ", ".join(failures))
         self.failures = failures
         self.input_fingerprint = input_fingerprint
         self.output_fingerprint = output_fingerprint
@@ -98,6 +98,8 @@ def build_provider_readiness_report(
         "configured_model": configured_model,
         "endpoint": "https://api.openai.com/v1/responses",
         "request_storage_enabled": False,
+        "idempotent_replay_protection": True,
+        "rejected_request_replay_protection": True,
         "sanitized_input_only": True,
         "explicit_generation_required": True,
         "required_settings": [
@@ -205,60 +207,104 @@ def generate_and_store_insight(
 ) -> dict[str, Any]:
     """Explicitly generate and append one isolated, idempotent insight."""
     resolved_now = now_utc or datetime.now(UTC)
-    selected = provider or _provider(request.provider_mode)
-    if selected.mode != request.provider_mode:
-        raise EvidenceBriefingError("Requested provider mode does not match the selected provider.")
-    try:
-        response = build_evidence_briefing(
-            reports=reports,
-            provider=selected,
-            now_utc=resolved_now,
-        )
-        record, created = append_insight(
-            insight_path,
-            idempotency_key=request.idempotency_key,
-            created_at_utc=resolved_now,
-            provider_mode=selected.mode,
-            model=selected.model,
-            prompt_fingerprint=response["prompt_fingerprint"],
-            input_fingerprint=response["input_fingerprint"],
-            briefing=response["briefing"],
-            quality_gate=response["quality_gate"],
-        )
-    except QualityGateRejected as error:
+    if resolved_now.tzinfo is None:
+        raise EvidenceBriefingError("Briefing time must be timezone-aware.")
+    with idempotency_guard(insight_path):
         try:
-            append_rejection(
-                rejection_path,
+            existing_insights = read_insights(insight_path)
+            existing_rejections = read_rejections(rejection_path)
+            key_fingerprint = idempotency_fingerprint(request.idempotency_key)
+            existing = next(
+                (row for row in existing_insights if row.insight_id == key_fingerprint),
+                None,
+            )
+            rejected = next(
+                (
+                    row
+                    for row in existing_rejections
+                    if row.idempotency_fingerprint == key_fingerprint
+                ),
+                None,
+            )
+            if existing and rejected:
+                raise EvidenceBriefingError(
+                    "AI request key exists in both accepted and rejected audit chains."
+                )
+            if existing:
+                if existing.provider_mode != request.provider_mode:
+                    raise EvidenceBriefingError(
+                        "Idempotency key was reused for a different AI provider mode."
+                    )
+                return {
+                    "status": "EXISTING",
+                    "created": False,
+                    "insight": existing.model_dump(mode="json"),
+                    "safety": BriefingSafety().model_dump(mode="json"),
+                }
+            if rejected:
+                if rejected.provider_mode != request.provider_mode:
+                    raise EvidenceBriefingError(
+                        "Idempotency key was reused for a different AI provider mode."
+                    )
+                raise EvidenceBriefingError(
+                    "This AI request key was previously rejected; no provider call was made."
+                )
+
+            selected = provider or _provider(request.provider_mode)
+            if selected.mode != request.provider_mode:
+                raise EvidenceBriefingError(
+                    "Requested provider mode does not match the selected provider."
+                )
+            response = build_evidence_briefing(
+                reports=reports,
+                provider=selected,
+                now_utc=resolved_now,
+            )
+            record, created = append_insight(
+                insight_path,
                 idempotency_key=request.idempotency_key,
                 created_at_utc=resolved_now,
-                provider_mode=error.provider_mode,
-                model=error.model,
-                prompt_fingerprint=PROMPT_FINGERPRINT,
-                input_fingerprint=error.input_fingerprint,
-                output_fingerprint=error.output_fingerprint,
-                failed_checks=error.failures,
-                network_calls_made=error.network_calls_made,
+                provider_mode=selected.mode,
+                model=selected.model,
+                prompt_fingerprint=response["prompt_fingerprint"],
+                input_fingerprint=response["input_fingerprint"],
+                briefing=response["briefing"],
+                quality_gate=response["quality_gate"],
             )
-        except (OSError, RuntimeError, ValueError) as audit_error:
+        except QualityGateRejected as error:
+            try:
+                append_rejection(
+                    rejection_path,
+                    idempotency_key=request.idempotency_key,
+                    created_at_utc=resolved_now,
+                    provider_mode=error.provider_mode,
+                    model=error.model,
+                    prompt_fingerprint=PROMPT_FINGERPRINT,
+                    input_fingerprint=error.input_fingerprint,
+                    output_fingerprint=error.output_fingerprint,
+                    failed_checks=error.failures,
+                    network_calls_made=error.network_calls_made,
+                )
+            except (OSError, RuntimeError, ValueError) as audit_error:
+                raise EvidenceBriefingError(
+                    "AI output was rejected and its content-free audit record could not be written."
+                ) from audit_error
             raise EvidenceBriefingError(
-                "AI output was rejected and its content-free audit record could not be written."
-            ) from audit_error
-        raise EvidenceBriefingError(
-            f"{error} Rejection metadata was recorded without rejected content."
-        ) from error
-    except (OSError, RuntimeError, ValueError, BriefingProviderError) as error:
-        if isinstance(error, EvidenceBriefingError):
-            raise
-        raise EvidenceBriefingError(str(error)) from error
-    return {
-        "status": "CREATED" if created else "EXISTING",
-        "created": created,
-        "insight": record.model_dump(mode="json"),
-        "safety": BriefingSafety(
-            network_calls_made=selected.network_calls_made,
-            files_changed=1 if created else 0,
-        ).model_dump(mode="json"),
-    }
+                f"{error} Rejection metadata was recorded without rejected content."
+            ) from error
+        except (OSError, RuntimeError, ValueError, BriefingProviderError) as error:
+            if isinstance(error, EvidenceBriefingError):
+                raise
+            raise EvidenceBriefingError(str(error)) from error
+        return {
+            "status": "CREATED" if created else "EXISTING",
+            "created": created,
+            "insight": record.model_dump(mode="json"),
+            "safety": BriefingSafety(
+                network_calls_made=selected.network_calls_made,
+                files_changed=1 if created else 0,
+            ).model_dump(mode="json"),
+        }
 
 
 def list_insights(*, insight_path: Path = DEFAULT_INSIGHT_PATH) -> dict[str, Any]:
@@ -310,9 +356,7 @@ def build_ai_governance_report(
         "hosted_rejected_output_count": sum(
             rejection.provider_mode == "OPENAI" for rejection in rejections
         ),
-        "latest_rejection_at_utc": (
-            rejections[-1].created_at_utc if rejections else None
-        ),
+        "latest_rejection_at_utc": (rejections[-1].created_at_utc if rejections else None),
         "orphaned_review_count": len(orphaned),
         "unreviewed_insight_ids": unreviewed,
         "orphaned_review_subject_ids": orphaned,
