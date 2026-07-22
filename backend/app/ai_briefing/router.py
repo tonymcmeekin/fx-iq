@@ -13,6 +13,7 @@ from app.ai_briefing.models import (
     InsightAppendResponse,
     InsightListResponse,
     ProviderReadinessResponse,
+    SimulatedHostedTrialResponse,
 )
 from app.ai_briefing.service import (
     EvidenceBriefingError,
@@ -22,6 +23,7 @@ from app.ai_briefing.service import (
     generate_and_store_insight,
     list_insights,
 )
+from app.ai_briefing.simulation import run_simulated_hosted_trial
 
 router = APIRouter(prefix="/ai", tags=["AI Evidence Analyst"])
 
@@ -79,3 +81,12 @@ def get_ai_governance() -> dict[str, Any]:
 def get_provider_readiness() -> dict[str, Any]:
     """Return a secret-free local preflight without contacting a provider."""
     return build_provider_readiness_report()
+
+
+@router.post("/simulated-hosted-trial", response_model=SimulatedHostedTrialResponse)
+def post_simulated_hosted_trial() -> dict[str, Any]:
+    """Exercise the hosted adapter locally without network or persistence."""
+    try:
+        return run_simulated_hosted_trial()
+    except EvidenceBriefingError as error:
+        raise _conflict(error) from error

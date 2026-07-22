@@ -397,6 +397,53 @@ button {
   font-size: 0.8rem;
 }
 
+.ai-simulation {
+  grid-column: 1 / -1;
+  padding-top: 0.9rem;
+  border-top: 1px solid #293c53;
+}
+
+.ai-simulation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-simulation-heading > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ai-simulation-heading span,
+.ai-simulation-results span {
+  color: #91a1b5;
+  font-size: 0.75rem;
+}
+
+.ai-simulation-results {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.ai-simulation-results > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 1px solid #355e5a;
+  border-radius: 0.6rem;
+  background: #102923;
+}
+
+.ai-simulation-results p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #b7f3d3;
+  font-size: 0.8rem;
+}
+
 .ai-heading-actions {
   display: flex;
   align-items: center;
@@ -1078,6 +1125,15 @@ footer {
   }
 
   .ai-quality-gate ul {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ai-simulation-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-simulation-results {
     grid-template-columns: 1fr 1fr;
   }
 

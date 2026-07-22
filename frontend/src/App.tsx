@@ -9,6 +9,7 @@ import {
   fetchScannerOpportunities,
   saveOfflineAiInsight,
   saveHostedAiInsight,
+  runSimulatedHostedAiTrial,
 } from "./api";
 import { MarketScanner } from "./components/MarketScanner";
 import type {
@@ -19,6 +20,7 @@ import type {
   DecisionComponentScores,
   OperatorAlertSeverity,
   ScannerSource,
+  SimulatedHostedTrialResponse,
 } from "./types";
 
 type ViewState =
@@ -203,6 +205,12 @@ function App() {
   >("idle");
   const [hostedError, setHostedError] = useState<string | null>(null);
   const hostedRequestKey = useRef<string | null>(null);
+  const [simulationStatus, setSimulationStatus] = useState<
+    "idle" | "running" | "passed" | "error"
+  >("idle");
+  const [simulationResult, setSimulationResult] =
+    useState<SimulatedHostedTrialResponse | null>(null);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -465,6 +473,24 @@ function App() {
       );
     }
   }, [hostedConsent, state]);
+
+  const runAiSafetyTrial = useCallback(async () => {
+    setSimulationStatus("running");
+    setSimulationResult(null);
+    setSimulationError(null);
+    try {
+      const result = await runSimulatedHostedAiTrial();
+      setSimulationResult(result);
+      setSimulationStatus("passed");
+    } catch (error: unknown) {
+      setSimulationStatus("error");
+      setSimulationError(
+        error instanceof Error
+          ? error.message
+          : "The offline AI safety trial could not be completed.",
+      );
+    }
+  }, []);
 
   if (state.status === "loading") {
     return (
@@ -811,6 +837,58 @@ function App() {
               {hostedError}
             </p>
           )}
+
+          <div className="ai-simulation">
+            <div className="ai-simulation-heading">
+              <div>
+                <strong>Offline AI safety trial</strong>
+                <span>
+                  In-process simulation · no OpenAI or OANDA connection
+                </span>
+              </div>
+              <button
+                className="button button--compact button--secondary"
+                type="button"
+                disabled={simulationStatus === "running"}
+                onClick={() => void runAiSafetyTrial()}
+              >
+                {simulationStatus === "running"
+                  ? "Running checks…"
+                  : "Run safe AI trial"}
+              </button>
+            </div>
+            {simulationResult && (
+              <div className="ai-simulation-results">
+                <div>
+                  <span>External network</span>
+                  <strong>{simulationResult.external_network_calls_made}</strong>
+                </div>
+                <div>
+                  <span>Persistent changes</span>
+                  <strong>
+                    {simulationResult.persistent_runtime_files_changed}
+                  </strong>
+                </div>
+                <div>
+                  <span>Broker orders</span>
+                  <strong>{simulationResult.broker_orders_submitted}</strong>
+                </div>
+                <div>
+                  <span>Quality gate</span>
+                  <strong>{simulationResult.quality_gate}</strong>
+                </div>
+                <p>
+                  PASS · Temporary chain verified · Human review required ·{" "}
+                  {new Date(simulationResult.executed_at_utc).toLocaleString()}
+                </p>
+              </div>
+            )}
+            {simulationStatus === "error" && simulationError && (
+              <p className="hosted-message hosted-message--error">
+                {simulationError}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="ai-briefing-grid">

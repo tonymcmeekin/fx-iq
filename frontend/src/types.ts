@@ -354,6 +354,20 @@ export interface AiProviderReadinessResponse {
   safety: EvidenceBriefingResponse["safety"];
 }
 
+export interface SimulatedHostedTrialResponse {
+  status: "PASS";
+  executed_at_utc: string;
+  mode: "LOCAL_IN_PROCESS";
+  external_network_calls_made: 0;
+  adapter_requests_made: 1;
+  persistent_runtime_files_changed: 0;
+  broker_orders_submitted: 0;
+  request_storage_enabled: false;
+  quality_gate: "PASS";
+  governance_status: "REVIEW_REQUIRED";
+  checks: Record<string, boolean>;
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";

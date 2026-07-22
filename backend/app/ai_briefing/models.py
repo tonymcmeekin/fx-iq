@@ -199,3 +199,20 @@ class ProviderReadinessResponse(BriefingModel):
     required_settings: list[str]
     blocking_reasons: list[str]
     safety: BriefingSafety
+
+
+class SimulatedHostedTrialResponse(BriefingModel):
+    """Proof that the hosted contract passed without external side effects."""
+
+    schema_version: int = 1
+    status: Literal["PASS"] = "PASS"
+    executed_at_utc: datetime
+    mode: Literal["LOCAL_IN_PROCESS"] = "LOCAL_IN_PROCESS"
+    external_network_calls_made: Literal[0] = 0
+    adapter_requests_made: Literal[1] = 1
+    persistent_runtime_files_changed: Literal[0] = 0
+    broker_orders_submitted: Literal[0] = 0
+    request_storage_enabled: Literal[False] = False
+    quality_gate: Literal["PASS"] = "PASS"
+    governance_status: Literal["REVIEW_REQUIRED"] = "REVIEW_REQUIRED"
+    checks: dict[str, bool]

@@ -2,7 +2,10 @@
 
 from datetime import UTC, datetime
 
-from scripts.run_simulated_hosted_ai_trial import run_trial
+from fastapi.testclient import TestClient
+
+from app.ai_briefing.simulation import run_simulated_hosted_trial
+from app.main import app
 
 
 def trial_reports():
@@ -61,7 +64,7 @@ def trial_reports():
 
 
 def test_simulated_hosted_trial_is_local_temporary_and_guarded():
-    result = run_trial(
+    result = run_simulated_hosted_trial(
         reports=trial_reports(),
         now_utc=datetime(2026, 7, 22, 12, tzinfo=UTC),
     )
@@ -74,3 +77,17 @@ def test_simulated_hosted_trial_is_local_temporary_and_guarded():
     assert result["quality_gate"] == "PASS"
     assert result["governance_status"] == "REVIEW_REQUIRED"
     assert all(result["checks"].values())
+
+
+def test_simulated_hosted_trial_endpoint_is_explicit_and_guarded():
+    response = TestClient(app).post("/ai/simulated-hosted-trial")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PASS"
+    assert response.json()["external_network_calls_made"] == 0
+    assert response.json()["persistent_runtime_files_changed"] == 0
+    assert response.json()["broker_orders_submitted"] == 0
+    schema = app.openapi()["paths"]["/ai/simulated-hosted-trial"]["post"]
+    assert schema["responses"]["200"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/SimulatedHostedTrialResponse")

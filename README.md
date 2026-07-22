@@ -13,6 +13,9 @@ offline. The trial uses an in-process transport, temporary audit files, and the
 same sanitization, quality, hash-chain, and human-review gates as the optional
 hosted path. It cannot contact OpenAI or OANDA.
 
+The same check is available in the dashboard as **Run safe AI trial**. Restart
+the dashboard after updating so the backend exposes the local simulation route.
+
 ## Safety verification
 
 Run `make check` before committing. It lints the backend, scans every Git-tracked

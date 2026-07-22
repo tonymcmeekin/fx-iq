@@ -17,6 +17,7 @@ import type {
   ReadinessResponse,
   ScannerResult,
   ScannerSource,
+  SimulatedHostedTrialResponse,
 } from "./types";
 
 interface CandlePayload {
@@ -181,6 +182,13 @@ export async function fetchAiGovernance(): Promise<AiGovernanceResponse> {
 
 export async function fetchAiProviderReadiness(): Promise<AiProviderReadinessResponse> {
   return requestJson<AiProviderReadinessResponse>("/ai/provider-readiness");
+}
+
+export async function runSimulatedHostedAiTrial(): Promise<SimulatedHostedTrialResponse> {
+  return requestJson<SimulatedHostedTrialResponse>(
+    "/ai/simulated-hosted-trial",
+    { method: "POST" },
+  );
 }
 
 export async function saveOfflineAiInsight(
