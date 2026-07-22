@@ -235,6 +235,14 @@ button {
   padding-left: 0.35rem;
 }
 
+.warning-group-title {
+  margin: 1.25rem 0 0.25rem;
+  color: #d8e4f2;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .danger-text {
   color: #ffadb8 !important;
   font-weight: 700;

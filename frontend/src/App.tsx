@@ -270,6 +270,9 @@ function App() {
   } = state.data;
   const calendar = readiness.progress.calendar_requirement;
   const isRefreshing = state.status === "refreshing";
+  const warningCount =
+    readiness.warnings.length +
+    operatorStatus.observation_integrity_warnings.length;
 
   return (
     <main className="dashboard">
@@ -704,23 +707,46 @@ function App() {
             <h2>Warnings</h2>
             <span
               className={
-                readiness.warnings.length === 0
+                warningCount === 0
                   ? "badge badge--positive"
                   : "badge badge--warning"
               }
             >
-              {readiness.warnings.length}
+              {warningCount}
             </span>
           </div>
 
-          {readiness.warnings.length === 0 ? (
+          {warningCount === 0 ? (
             <p>No warnings reported.</p>
           ) : (
-            <ul>
-              {readiness.warnings.map((item) => (
-                <li key={item}>{formatLabel(item)}</li>
-              ))}
-            </ul>
+            <>
+              {readiness.warnings.length > 0 && (
+                <>
+                  <h3 className="warning-group-title">
+                    Protocol evidence
+                  </h3>
+                  <ul>
+                    {readiness.warnings.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {operatorStatus.observation_integrity_warnings
+                .length > 0 && (
+                <>
+                  <h3 className="warning-group-title">
+                    Observation evidence
+                  </h3>
+                  <ul>
+                    {operatorStatus.observation_integrity_warnings.map(
+                      (item) => <li key={item}>{item}</li>,
+                    )}
+                  </ul>
+                </>
+              )}
+            </>
           )}
         </article>
 
