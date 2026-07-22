@@ -261,8 +261,13 @@ function App() {
     );
   }
 
-  const { readiness, explanation, decision, scanner } =
-    state.data;
+  const {
+    readiness,
+    explanation,
+    operatorStatus,
+    decision,
+    scanner,
+  } = state.data;
   const calendar = readiness.progress.calendar_requirement;
   const isRefreshing = state.status === "refreshing";
 
@@ -325,6 +330,29 @@ function App() {
               {readiness.paper_observation_allowed
                 ? "Protocol active"
                 : "Review required"}
+            </span>
+          </div>
+        </article>
+
+        <article className="card">
+          <span>Observation integrity</span>
+          <strong>
+            {formatLabel(
+              operatorStatus.observation_integrity_status ??
+                "Unavailable",
+            )}
+          </strong>
+          <div>
+            <span
+              className={
+                operatorStatus.observation_integrity_status ===
+                "HEALTHY"
+                  ? "badge badge--positive"
+                  : "badge badge--danger"
+              }
+            >
+              {operatorStatus.observations_recorded} observations ·{" "}
+              {operatorStatus.observation_outcomes_populated} outcomes
             </span>
           </div>
         </article>
