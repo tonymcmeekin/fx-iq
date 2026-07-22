@@ -69,3 +69,17 @@ def test_overview_contract_contains_nested_models():
     assert properties["runtime"]["$ref"].endswith("/ProspectivePaperHealthResponse")
     assert properties["operator_status"]["$ref"].endswith("/OperatorStatusResponse")
     assert properties["strategy_attribution"]["$ref"].endswith("/StrategyAttributionResponse")
+
+
+def test_operator_contract_declares_observation_integrity_fields():
+    schema = app.openapi()
+    operator = schema["components"]["schemas"][
+        "OperatorStatusResponse"
+    ]
+
+    properties = operator["properties"]
+
+    assert "observation_integrity_status" in properties
+    assert "observations_recorded" in properties
+    assert "observation_outcomes_populated" in properties
+    assert "observation_integrity_warnings" in properties

@@ -104,6 +104,7 @@ class OperatorStatusResponse(AnalyticsResponseModel):
     runtime_health: str | None = None
     performance_status: str | None = None
     rolling_analytics_status: str | None = None
+    observation_integrity_status: str | None = None
     evidence_gate_status: str | None = None
     live_trading_decision: str | None = None
     safe_to_continue_paper_observation: bool = False
@@ -111,6 +112,8 @@ class OperatorStatusResponse(AnalyticsResponseModel):
     positions_opened: int = Field(default=0, ge=0)
     positions_closed: int = Field(default=0, ge=0)
     actionable_signals: int = Field(default=0, ge=0)
+    observations_recorded: int = Field(default=0, ge=0)
+    observation_outcomes_populated: int = Field(default=0, ge=0)
     candidate_balance: float | None = None
     shadow_balance: float | None = None
     candidate_return_percent: float | None = None
@@ -119,6 +122,9 @@ class OperatorStatusResponse(AnalyticsResponseModel):
     shadow_max_drawdown_percent: float | None = None
     earliest_eligible_assessment_date: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    observation_integrity_warnings: list[str] = Field(
+        default_factory=list
+    )
     blocking_issues: list[str] = Field(default_factory=list)
     protocol_failed_criteria: list[str] = Field(default_factory=list)
     protocol_unevaluable_criteria: list[str] = Field(default_factory=list)
@@ -157,6 +163,15 @@ class AnalyticsOverviewSummary(AnalyticsResponseModel):
     runtime_health: str | None = None
     performance_status: str | None = None
     rolling_analytics_status: str | None = None
+    observation_integrity_status: str | None = None
+    observations_recorded: int | None = Field(
+        default=None,
+        ge=0,
+    )
+    observation_outcomes_populated: int | None = Field(
+        default=None,
+        ge=0,
+    )
     evidence_gate_status: str | None = None
     safe_to_continue_paper_observation: bool | None = None
     earliest_eligible_assessment_date: str | None = None

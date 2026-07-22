@@ -243,6 +243,9 @@ def operator_status_report() -> dict:
         "runtime_health": "HEALTHY",
         "performance_status": "INSUFFICIENT_DATA",
         "rolling_analytics_status": "INSUFFICIENT_DATA",
+        "observation_integrity_status": "HEALTHY",
+        "observations_recorded": 6,
+        "observation_outcomes_populated": 0,
         "evidence_gate_status": "NOT_READY",
         "safe_to_continue_paper_observation": True,
         "earliest_eligible_assessment_date": "2027-07-14",
@@ -285,6 +288,9 @@ def test_overview_includes_operator_status(
     assert result["summary"]["runtime_health"] == "HEALTHY"
     assert result["summary"]["performance_status"] == "INSUFFICIENT_DATA"
     assert result["summary"]["rolling_analytics_status"] == "INSUFFICIENT_DATA"
+    assert result["summary"]["observation_integrity_status"] == "HEALTHY"
+    assert result["summary"]["observations_recorded"] == 6
+    assert result["summary"]["observation_outcomes_populated"] == 0
     assert result["summary"]["evidence_gate_status"] == "NOT_READY"
     assert result["summary"]["safe_to_continue_paper_observation"] is True
     assert result["summary"]["earliest_eligible_assessment_date"] == "2027-07-14"

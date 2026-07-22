@@ -16,6 +16,12 @@ def operator_report() -> dict:
         "runtime_health": "HEALTHY",
         "performance_status": "INSUFFICIENT_DATA",
         "rolling_analytics_status": "INSUFFICIENT_DATA",
+        "observation_integrity_status": "HEALTHY",
+        "observations_recorded": 6,
+        "observation_outcomes_populated": 0,
+        "observation_integrity_warnings": [
+            "No observation outcomes are populated yet.",
+        ],
         "completed_sessions": 1,
         "positions_closed": 0,
         "candidate_balance": 10000.0,
@@ -52,6 +58,9 @@ def test_operator_status_endpoint_returns_report(
     assert result["completed_sessions"] == 1
     assert result["evidence_gate_status"] == "NOT_READY"
     assert result["safe_to_continue_paper_observation"] is True
+    assert result["observation_integrity_status"] == "HEALTHY"
+    assert result["observations_recorded"] == 6
+    assert result["observation_outcomes_populated"] == 0
 
 
 def test_operator_status_preserves_safety_boundaries(

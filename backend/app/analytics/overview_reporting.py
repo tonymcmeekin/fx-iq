@@ -132,6 +132,19 @@ def perform_report() -> dict[str, Any]:
             "runtime_health": operator_status.get("runtime_health"),
             "performance_status": operator_status.get("performance_status"),
             "rolling_analytics_status": (operator_status.get("rolling_analytics_status")),
+            "observation_integrity_status": (
+                operator_status.get(
+                    "observation_integrity_status"
+                )
+            ),
+            "observations_recorded": operator_status.get(
+                "observations_recorded"
+            ),
+            "observation_outcomes_populated": (
+                operator_status.get(
+                    "observation_outcomes_populated"
+                )
+            ),
             "evidence_gate_status": operator_status.get("evidence_gate_status"),
             "safe_to_continue_paper_observation": (
                 operator_status.get("safe_to_continue_paper_observation")
