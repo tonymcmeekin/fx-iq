@@ -240,6 +240,43 @@ export interface AnnotationAppendResponse {
   protocol_live_trading_permitted: false;
 }
 
+export interface EvidenceCitation {
+  evidence_id: string;
+  label: string;
+}
+
+export interface EvidenceBriefingResponse {
+  status: "READY";
+  generated_at_utc: string;
+  provider_mode: "OFFLINE" | "OPENAI";
+  model: string;
+  prompt_fingerprint: string;
+  input_fingerprint: string;
+  hosted_provider_available: boolean;
+  briefing: {
+    headline: string;
+    what_changed: string[];
+    why_waiting: string[];
+    missing_evidence: string[];
+    risks_to_review: string[];
+    next_review_questions: string[];
+    citations: EvidenceCitation[];
+  };
+  safety: {
+    input_sanitized: true;
+    credentials_included: false;
+    annotation_text_included: false;
+    raw_market_data_included: false;
+    trading_action_permitted: false;
+    network_calls_made: number;
+    files_changed: number;
+    ledger_writes_performed: number;
+    broker_orders_submitted: number;
+    safe_for_live_trading: false;
+    protocol_live_trading_permitted: false;
+  };
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -290,6 +327,7 @@ export interface DashboardData {
   portfolio: PortfolioIntelligenceResponse;
   outcomes: OutcomeExplorerResponse;
   annotations: AnnotationListResponse;
+  aiBriefing: EvidenceBriefingResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

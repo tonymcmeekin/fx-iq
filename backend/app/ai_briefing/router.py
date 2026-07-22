@@ -1,0 +1,62 @@
+"""Guarded AI evidence briefing API."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+
+from app.ai_briefing.models import (
+    BriefingGenerateRequest,
+    EvidenceBriefingResponse,
+    InsightAppendResponse,
+    InsightListResponse,
+)
+from app.ai_briefing.service import (
+    EvidenceBriefingError,
+    build_evidence_briefing,
+    generate_and_store_insight,
+    list_insights,
+)
+
+router = APIRouter(prefix="/ai", tags=["AI Evidence Analyst"])
+
+
+def _conflict(error: EvidenceBriefingError) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={
+            "status": "ERROR",
+            "error": str(error),
+            "broker_orders_submitted": 0,
+            "safe_for_live_trading": False,
+            "protocol_live_trading_permitted": False,
+        },
+    )
+
+
+@router.get("/evidence-briefing", response_model=EvidenceBriefingResponse)
+def get_evidence_briefing() -> dict[str, Any]:
+    """Return an offline, read-only briefing without storing it."""
+    try:
+        return build_evidence_briefing()
+    except EvidenceBriefingError as error:
+        raise _conflict(error) from error
+
+
+@router.post("/evidence-briefing", response_model=InsightAppendResponse)
+def post_evidence_briefing(request: BriefingGenerateRequest) -> dict[str, Any]:
+    """Explicitly generate and hash-chain one isolated insight."""
+    try:
+        return generate_and_store_insight(request)
+    except EvidenceBriefingError as error:
+        raise _conflict(error) from error
+
+
+@router.get("/evidence-insights", response_model=InsightListResponse)
+def get_evidence_insights() -> dict[str, Any]:
+    """Return the verified AI insight audit chain."""
+    try:
+        return list_insights()
+    except EvidenceBriefingError as error:
+        raise _conflict(error) from error

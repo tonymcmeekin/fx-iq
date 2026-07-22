@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.ai_briefing.router import router as ai_briefing_router
 from app.analytics.router import router as analytics_router
 from app.backtesting.router import router as backtesting_router
 from app.decision.router import router as decision_router
@@ -21,6 +22,7 @@ app.include_router(scanner_router)
 app.include_router(backtesting_router)
 app.include_router(analytics_router)
 app.include_router(operator_review_router)
+app.include_router(ai_briefing_router)
 
 
 @app.get("/")

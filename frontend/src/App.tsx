@@ -346,6 +346,7 @@ function App() {
     portfolio,
     outcomes,
     annotations,
+    aiBriefing,
     decision,
     scanner,
   } = state.data;
@@ -544,6 +545,79 @@ function App() {
         <p className="evidence-safety">
           Simulation only. This cockpit can inspect evidence, but it cannot
           submit or authorize broker orders.
+        </p>
+      </section>
+
+      <section className="panel ai-briefing">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Guarded AI evidence analyst</span>
+            <h2>Evidence briefing</h2>
+          </div>
+          <span className="badge badge--positive">
+            {aiBriefing.provider_mode === "OFFLINE"
+              ? "Offline · no network"
+              : "Hosted · sanitized"}
+          </span>
+        </div>
+
+        <p className="ai-headline">{aiBriefing.briefing.headline}</p>
+
+        <div className="ai-briefing-grid">
+          <article>
+            <h3>What the evidence says</h3>
+            <ul>
+              {aiBriefing.briefing.what_changed.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>Why we are waiting</h3>
+            <ul>
+              {aiBriefing.briefing.why_waiting.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>Missing evidence</h3>
+            <ul>
+              {aiBriefing.briefing.missing_evidence.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>Risks to review</h3>
+            <ul>
+              {aiBriefing.briefing.risks_to_review.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>Questions for human review</h3>
+            <ul>
+              {aiBriefing.briefing.next_review_questions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+
+        <div className="ai-citations" aria-label="Briefing evidence citations">
+          {aiBriefing.briefing.citations.map((citation) => (
+            <code key={citation.evidence_id} title={citation.evidence_id}>
+              {citation.label}
+            </code>
+          ))}
+        </div>
+
+        <p className="evidence-safety">
+          Input sanitized · no credentials, annotation text, or raw candles.
+          This analyst cannot change strategy, authorize live trading, or submit
+          broker orders.
         </p>
       </section>
 
