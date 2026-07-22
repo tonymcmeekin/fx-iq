@@ -14,13 +14,13 @@ test:
 	cd backend && . .venv/bin/activate && pytest
 
 lint:
-	cd backend && . .venv/bin/activate && ruff check app tests scripts/check_source_privacy.py scripts/run_dashboard.py scripts/run_simulated_hosted_ai_trial.py
+	cd backend && . .venv/bin/activate && ruff check app tests scripts/check_source_privacy.py scripts/run_dashboard.py scripts/run_oanda_practice_canary_rehearsal.py scripts/run_scheduled_practice_operation.py scripts/run_simulated_hosted_ai_trial.py
 
 privacy:
 	cd backend && . .venv/bin/activate && python scripts/check_source_privacy.py
 
 format:
-	cd backend && . .venv/bin/activate && ruff format app tests scripts/check_source_privacy.py scripts/run_dashboard.py scripts/run_simulated_hosted_ai_trial.py
+	cd backend && . .venv/bin/activate && ruff format app tests scripts/check_source_privacy.py scripts/run_dashboard.py scripts/run_oanda_practice_canary_rehearsal.py scripts/run_scheduled_practice_operation.py scripts/run_simulated_hosted_ai_trial.py
 
 check:
 	make lint

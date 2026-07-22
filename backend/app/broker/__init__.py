@@ -1,4 +1,12 @@
 from app.broker.account_models import OandaAccountSnapshot
+from app.broker.canary_gateway import (
+    LIVE_CANARY_BUILD_ENABLED,
+    CanaryEnvironment,
+    CanaryGatewayError,
+    CanaryRehearsalRequest,
+    CanaryRehearsalResult,
+    OandaCanaryGateway,
+)
 from app.broker.coordinator import (
     CoordinatedExecution,
     ExecutionCoordinationError,
@@ -38,13 +46,19 @@ __all__ = [
     "BrokerOrderStatus",
     "BrokerOrderValidationError",
     "BrokerReconciliationReport",
+    "CanaryEnvironment",
+    "CanaryGatewayError",
+    "CanaryRehearsalRequest",
+    "CanaryRehearsalResult",
     "CoordinatedExecution",
     "ExecutionCoordinationError",
     "ExecutionCoordinator",
     "OandaAccountSnapshot",
+    "OandaCanaryGateway",
     "OandaPracticeReadOnlyClient",
     "OandaPracticeShadowGateway",
     "OandaReadOnlyError",
+    "LIVE_CANARY_BUILD_ENABLED",
     "build_oanda_market_order_payload",
     "reconcile_open_positions",
     "validate_broker_order",

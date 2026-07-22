@@ -87,6 +87,23 @@ If no later completed candle is available, leaving the entry pending is the
 correct outcome. Do not repeatedly create new session dates merely to force a
 fill.
 
+## Scheduled weekday operation
+
+The scheduler-safe launcher runs only Monday through Friday at or after 22:20
+Europe/London. It reads only the three OANDA settings from the ignored local
+`.env`, requires `OANDA_ENVIRONMENT=practice`, invokes the normal guarded daily
+operation for the current London date, and refuses any result that records a
+broker order or permits live trading:
+
+```bash
+python scripts/run_scheduled_practice_operation.py
+```
+
+The configured Codex automation invokes this entry point at 22:20
+Europe/London on weekdays. A weekend invocation is a reported no-op. A late,
+failed, or missed invocation must be reviewed; the launcher never fabricates or
+backdates a prospective session.
+
 ## Normal guarded paper operation
 
 Use an explicit ISO session date:
@@ -205,7 +222,9 @@ Expected outcomes:
 ## Prohibited actions
 
 - Do not change the environment to `live`.
-- Do not add or invoke broker-order submission code.
+- Do not connect the prospective paper operation to any broker-order gateway.
+- Do not invoke the practice canary rehearsal without separate explicit
+  operator approval and its exact confirmation phrase.
 - Do not treat paper evidence as permission for live trading.
 - Do not bypass preflight, postflight, policy fingerprint, clean-tree, or health
   checks.
@@ -215,3 +234,38 @@ Expected outcomes:
 
 The evidence gate and daily operation must continue to report live trading as
 prohibited until a separate reviewed protocol explicitly changes that policy.
+
+## Isolated practice canary rehearsal
+
+The canary gateway is isolated from the prospective strategy. It cannot be
+called by the daily operation, accepts exactly one unit, and requires an OANDA
+Practice account with no open trades or pending orders. It checks the quote,
+submits one protected practice entry, verifies the resulting trade and attached
+stop/take-profit orders, immediately closes the trade, and confirms it is no
+longer open.
+
+The live gateway constructor is build-locked by
+`LIVE_CANARY_BUILD_ENABLED = False`. No environment variable, command-line
+flag, API key, account ID, or confirmation phrase can enable the live host in
+this build.
+
+After separately approving a rehearsal, calculate protection prices around the
+current practice quote and run:
+
+```bash
+python scripts/run_oanda_practice_canary_rehearsal.py \
+  --rehearsal-id UNIQUE-ID \
+  --instrument EUR_USD \
+  --direction BUY \
+  --stop-loss PRICE \
+  --take-profit PRICE \
+  --confirmation EXECUTE_ONE_UNIT_OANDA_PRACTICE_REHEARSAL
+```
+
+Never reuse a rehearsal ID. The gateway checks OANDA for the derived client ID
+before price collection or submission. If post-fill verification fails, it
+attempts an emergency close and instructs the operator to reconcile the
+practice account immediately. A completed result must show two practice broker
+actions (entry and close), zero live orders, and a verified closed position.
+Successful results are appended to the ignored, hash-chained runtime audit at
+`paper_ledger/canary_rehearsals.jsonl`; no token or raw account ID is stored.
