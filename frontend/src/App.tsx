@@ -666,15 +666,17 @@ function App() {
           <div>
             <span
               className={
-                canaryReadiness.status === "INTEGRITY_ERROR"
+                canaryReadiness.status === "INTEGRITY_ERROR" ||
+                canaryReadiness.status === "ACTION_REQUIRED"
                   ? "badge badge--danger"
                   : canaryReadiness.operational_rehearsal_target_met
                     ? "badge badge--positive"
                     : "badge badge--warning"
               }
             >
-              {canaryReadiness.rehearsal_count}/
-              {canaryReadiness.required_rehearsals} closed · live locked
+              {canaryReadiness.qualifying_rehearsal_count}/
+              {canaryReadiness.required_rehearsals} qualifying ·{" "}
+              {canaryReadiness.failed_rehearsal_count} failed · live locked
             </span>
           </div>
         </article>

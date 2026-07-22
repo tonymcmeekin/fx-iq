@@ -357,8 +357,11 @@ export interface AiProviderReadinessResponse {
 }
 
 export interface CanaryReadinessResponse {
-  status: "NO_EVIDENCE" | "REHEARSING" | "REHEARSAL_TARGET_MET" | "INTEGRITY_ERROR";
+  status: "NO_EVIDENCE" | "REHEARSING" | "REHEARSAL_TARGET_MET" | "ACTION_REQUIRED" | "INTEGRITY_ERROR";
   rehearsal_count: number;
+  qualifying_rehearsal_count: number;
+  failed_rehearsal_count: number;
+  unresolved_failure_count: number;
   required_rehearsals: number;
   remaining_rehearsals: number;
   operational_rehearsal_target_met: boolean;
@@ -369,6 +372,8 @@ export interface CanaryReadinessResponse {
   latest_rehearsal_id: string | null;
   latest_completed_at_utc: string | null;
   latest_instrument: string | null;
+  latest_failure_at_utc: string | null;
+  latest_failure_stage: string | null;
   live_canary_build_enabled: false;
   live_execution_locked: true;
   live_trading_allowed: false;

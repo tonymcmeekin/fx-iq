@@ -14,8 +14,17 @@ class BrokerApiModel(BaseModel):
 
 class CanaryReadinessResponse(BrokerApiModel):
     schema_version: int = 1
-    status: Literal["NO_EVIDENCE", "REHEARSING", "REHEARSAL_TARGET_MET", "INTEGRITY_ERROR"]
+    status: Literal[
+        "NO_EVIDENCE",
+        "REHEARSING",
+        "REHEARSAL_TARGET_MET",
+        "ACTION_REQUIRED",
+        "INTEGRITY_ERROR",
+    ]
     rehearsal_count: int = Field(ge=0)
+    qualifying_rehearsal_count: int = Field(ge=0)
+    failed_rehearsal_count: int = Field(ge=0)
+    unresolved_failure_count: int = Field(ge=0)
     required_rehearsals: int = Field(ge=1)
     remaining_rehearsals: int = Field(ge=0)
     operational_rehearsal_target_met: bool
@@ -26,6 +35,8 @@ class CanaryReadinessResponse(BrokerApiModel):
     latest_rehearsal_id: str | None
     latest_completed_at_utc: datetime | None
     latest_instrument: str | None
+    latest_failure_at_utc: datetime | None
+    latest_failure_stage: str | None
     live_canary_build_enabled: Literal[False] = False
     live_execution_locked: Literal[True] = True
     live_trading_allowed: Literal[False] = False

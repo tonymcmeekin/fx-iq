@@ -174,9 +174,13 @@ def test_canary_rejects_stale_quote_before_submission():
         account_id=ACCOUNT_ID,
         opener=opener,
     )
-    with pytest.raises(CanaryGatewayError, match="stale"):
+    with pytest.raises(CanaryGatewayError, match="stale") as captured:
         gateway.rehearse(request(), now_utc=NOW)
     assert all(item.get_method() == "GET" for item in opener.requests)
+    failure = gateway.failure_context(captured.value)
+    assert failure.stage == "PRICE_PREFLIGHT"
+    assert failure.entry_request_attempted is False
+    assert failure.operator_action_required is False
 
 
 def test_post_fill_validation_failure_submits_emergency_close():
@@ -199,10 +203,15 @@ def test_post_fill_validation_failure_submits_emergency_close():
         account_id=ACCOUNT_ID,
         opener=opener,
     )
-    with pytest.raises(CanaryGatewayError, match="Emergency close was submitted"):
+    with pytest.raises(CanaryGatewayError, match="Emergency close was submitted") as captured:
         gateway.rehearse(request(), now_utc=NOW)
     assert opener.requests[-1].get_method() == "PUT"
     assert json.loads(opener.requests[-1].data) == {"units": "ALL"}
+    failure = gateway.failure_context(captured.value)
+    assert failure.entry_order_confirmed is True
+    assert failure.emergency_close_attempted is True
+    assert failure.emergency_close_confirmed is True
+    assert failure.operator_action_required is True
 
 
 def test_invalid_order_is_rejected_before_network_access():

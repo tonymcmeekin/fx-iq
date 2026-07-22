@@ -269,3 +269,9 @@ practice account immediately. A completed result must show two practice broker
 actions (entry and close), zero live orders, and a verified closed position.
 Successful results are appended to the ignored, hash-chained runtime audit at
 `paper_ledger/canary_rehearsals.jsonl`; no token or raw account ID is stored.
+Failed attempts are appended separately to
+`paper_ledger/canary_rehearsal_failures.jsonl` with content-safe stage,
+request-confirmation, emergency-close, and reconciliation evidence. A failure
+that cannot prove there is no remaining exposure is marked for immediate human
+action. Any failed attempt resets the dashboard's qualifying rehearsal streak;
+the lifetime success count is retained for audit history.

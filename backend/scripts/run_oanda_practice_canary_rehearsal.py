@@ -14,6 +14,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.broker.canary_audit import CanaryAuditError, append_canary_audit  # noqa: E402
+from app.broker.canary_failure_audit import (  # noqa: E402
+    CanaryFailureAuditError,
+    append_canary_failure_audit,
+)
 from app.broker.canary_gateway import (  # noqa: E402
     CanaryGatewayError,
     CanaryRehearsalRequest,
@@ -23,6 +27,7 @@ from app.broker.models import BrokerDirection  # noqa: E402
 
 CONFIRMATION = "EXECUTE_ONE_UNIT_OANDA_PRACTICE_REHEARSAL"
 AUDIT_PATH = PROJECT_ROOT / "paper_ledger" / "canary_rehearsals.jsonl"
+FAILURE_AUDIT_PATH = PROJECT_ROOT / "paper_ledger" / "canary_rehearsal_failures.jsonl"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,8 +56,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     token = os.environ.get("OANDA_API_TOKEN", "")
     account_id = os.environ.get("OANDA_ACCOUNT_ID", "")
+    gateway: OandaCanaryGateway | None = None
     try:
-        result = OandaCanaryGateway(token=token, account_id=account_id).rehearse(
+        gateway = OandaCanaryGateway(token=token, account_id=account_id)
+        result = gateway.rehearse(
             CanaryRehearsalRequest(
                 rehearsal_id=arguments.rehearsal_id,
                 instrument=arguments.instrument,
@@ -62,8 +69,30 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         audit, created = append_canary_audit(AUDIT_PATH, result)
-    except (CanaryAuditError, CanaryGatewayError, ValueError) as error:
+    except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    except (CanaryAuditError, CanaryGatewayError) as error:
+        if gateway is None:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 1
+        try:
+            failure_audit, failure_created = append_canary_failure_audit(
+                FAILURE_AUDIT_PATH,
+                gateway.failure_context(error),
+            )
+        except CanaryFailureAuditError as audit_error:
+            print(
+                "ERROR: Practice rehearsal failed and its failure audit could not be written: "
+                f"{audit_error}",
+                file=sys.stderr,
+            )
+            return 1
+        failure_status = "CREATED" if failure_created else "EXISTING"
+        print(
+            f"ERROR: {error} Failure audit {failure_status}: {failure_audit['record_hash'][:12]}",
+            file=sys.stderr,
+        )
         return 1
     output = asdict(result)
     output["audit_status"] = "CREATED" if created else "EXISTING"

@@ -65,6 +65,25 @@ class CanaryRehearsalResult:
     live_canary_build_enabled: bool
 
 
+@dataclass(frozen=True)
+class CanaryFailureContext:
+    rehearsal_id: str
+    account_fingerprint: str
+    stage: str
+    failure_type: str
+    failure_message: str
+    network_calls_made: int
+    entry_request_attempted: bool
+    entry_order_confirmed: bool
+    close_request_attempted: bool
+    close_order_confirmed: bool
+    emergency_close_attempted: bool
+    emergency_close_confirmed: bool
+    final_reconciliation_confirmed: bool
+    operator_action_required: bool
+    live_orders_submitted: int
+
+
 OpenUrl = Callable[..., Any]
 
 
@@ -132,6 +151,40 @@ class OandaCanaryGateway:
         self._timeout_seconds = timeout_seconds
         self._opener = opener
         self._network_calls = 0
+        self._rehearsal_id = "UNKNOWN"
+        self._stage = "NOT_STARTED"
+        self._entry_request_attempted = False
+        self._entry_order_confirmed = False
+        self._close_request_attempted = False
+        self._close_order_confirmed = False
+        self._emergency_close_attempted = False
+        self._emergency_close_confirmed = False
+        self._final_reconciliation_confirmed = False
+
+    def failure_context(self, error: BaseException) -> CanaryFailureContext:
+        """Return content-safe evidence for a failed or interrupted rehearsal."""
+        message = " ".join(str(error).split())[:500] or type(error).__name__
+        unresolved_entry = self._entry_request_attempted and not self._entry_order_confirmed
+        unresolved_trade = self._entry_order_confirmed and not (
+            self._close_order_confirmed and self._final_reconciliation_confirmed
+        )
+        return CanaryFailureContext(
+            rehearsal_id=self._rehearsal_id,
+            account_fingerprint=hashlib.sha256(self._account_id.encode()).hexdigest(),
+            stage=self._stage,
+            failure_type=type(error).__name__,
+            failure_message=message,
+            network_calls_made=self._network_calls,
+            entry_request_attempted=self._entry_request_attempted,
+            entry_order_confirmed=self._entry_order_confirmed,
+            close_request_attempted=self._close_request_attempted,
+            close_order_confirmed=self._close_order_confirmed,
+            emergency_close_attempted=self._emergency_close_attempted,
+            emergency_close_confirmed=self._emergency_close_confirmed,
+            final_reconciliation_confirmed=self._final_reconciliation_confirmed,
+            operator_action_required=unresolved_entry or unresolved_trade,
+            live_orders_submitted=0,
+        )
 
     def _request_json(
         self,
@@ -192,6 +245,7 @@ class OandaCanaryGateway:
         trade_id: str,
         request_id: str,
     ) -> str:
+        self._close_request_attempted = True
         closed = self._request_json(
             "PUT",
             f"/v3/accounts/{account}/trades/{quote(trade_id, safe='-')}/close",
@@ -200,7 +254,9 @@ class OandaCanaryGateway:
         )
         assert closed is not None
         close_fill = _required_object(closed, "orderFillTransaction")
-        return _required_string(close_fill, "id")
+        transaction_id = _required_string(close_fill, "id")
+        self._close_order_confirmed = True
+        return transaction_id
 
     def _recover_created_trade(
         self,
@@ -233,6 +289,8 @@ class OandaCanaryGateway:
         now_utc: datetime | None = None,
     ) -> CanaryRehearsalResult:
         """Open, verify, close, and reconcile exactly one unit in practice."""
+        self._rehearsal_id = request.rehearsal_id
+        self._stage = "LOCAL_VALIDATION"
         if request.units != 1:
             raise CanaryGatewayError("Canary rehearsals are fixed at exactly one unit.")
         if not request.rehearsal_id.strip():
@@ -257,6 +315,7 @@ class OandaCanaryGateway:
             raise CanaryGatewayError(str(error)) from error
 
         account = quote(self._account_id, safe="-")
+        self._stage = "ACCOUNT_PREFLIGHT"
         account_payload = self._request_json("GET", f"/v3/accounts/{account}")
         assert account_payload is not None
         account_state = _required_object(account_payload, "account")
@@ -268,6 +327,7 @@ class OandaCanaryGateway:
                 )
 
         order_client_id = _client_id("canary", request.rehearsal_id)
+        self._stage = "DUPLICATE_PREFLIGHT"
         existing = self._request_json(
             "GET",
             f"/v3/accounts/{account}/orders/@{order_client_id}",
@@ -279,6 +339,7 @@ class OandaCanaryGateway:
             )
 
         query = urlencode({"instruments": request.instrument})
+        self._stage = "PRICE_PREFLIGHT"
         pricing_payload = self._request_json("GET", f"/v3/accounts/{account}/pricing?{query}")
         assert pricing_payload is not None
         prices = pricing_payload.get("prices")
@@ -320,6 +381,8 @@ class OandaCanaryGateway:
             "tag": "trade_iq_canary",
         }
 
+        self._stage = "ENTRY_SUBMISSION"
+        self._entry_request_attempted = True
         try:
             created = self._request_json(
                 "POST",
@@ -335,13 +398,16 @@ class OandaCanaryGateway:
                 trade_id = _required_string(opened, "tradeID")
             else:
                 trade_id = _required_string(fill, "tradeOpenedID")
+            self._entry_order_confirmed = True
         except CanaryGatewayError as creation_error:
             entry_transaction_id, trade_id = self._recover_created_trade(
                 account=account,
                 order_client_id=order_client_id,
                 creation_error=creation_error,
             )
+            self._entry_order_confirmed = True
 
+        self._stage = "PROTECTION_VERIFICATION"
         try:
             trade_payload = self._request_json(
                 "GET", f"/v3/accounts/{account}/trades/{quote(trade_id, safe='-')}"
@@ -355,6 +421,7 @@ class OandaCanaryGateway:
             ):
                 raise CanaryGatewayError("Practice canary protection orders were not attached.")
 
+            self._stage = "CLOSE_SUBMISSION"
             close_transaction_id = self._close_trade(
                 account=account,
                 trade_id=trade_id,
@@ -362,11 +429,14 @@ class OandaCanaryGateway:
             )
         except CanaryGatewayError as lifecycle_error:
             try:
+                self._stage = "EMERGENCY_CLOSE"
+                self._emergency_close_attempted = True
                 self._close_trade(
                     account=account,
                     trade_id=trade_id,
                     request_id=_client_id("emergency", request.rehearsal_id),
                 )
+                self._emergency_close_confirmed = True
             except CanaryGatewayError as emergency_error:
                 raise CanaryGatewayError(
                     "Practice canary lifecycle failed and emergency close could not be "
@@ -376,6 +446,7 @@ class OandaCanaryGateway:
                 f"{lifecycle_error} Emergency close was submitted and must be reconciled."
             ) from lifecycle_error
 
+        self._stage = "FINAL_RECONCILIATION"
         final_payload = self._request_json("GET", f"/v3/accounts/{account}/openTrades")
         assert final_payload is not None
         final_trades = final_payload.get("trades")
@@ -383,6 +454,8 @@ class OandaCanaryGateway:
             raise CanaryGatewayError("OANDA final trade reconciliation is invalid.")
         if any(isinstance(item, dict) and item.get("id") == trade_id for item in final_trades):
             raise CanaryGatewayError("Practice canary trade remains open after close request.")
+        self._final_reconciliation_confirmed = True
+        self._stage = "COMPLETE"
 
         account_fingerprint = hashlib.sha256(self._account_id.encode()).hexdigest()
         return CanaryRehearsalResult(
