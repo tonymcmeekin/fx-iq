@@ -69,6 +69,35 @@ CollectorFunction = Callable[
 ]
 
 
+def candidate_risk_percent(
+    position: dict,
+) -> float:
+    """Resolve current and legacy paper-position risk metadata."""
+    value = position.get(
+        "candidate_risk_percent"
+    )
+
+    if value is None:
+        candidate = position.get("candidate")
+        if isinstance(candidate, dict):
+            value = candidate.get(
+                "configured_risk_percent"
+            )
+
+    if value is None:
+        raise RuntimeError(
+            "Paper position is missing candidate risk metadata."
+        )
+
+    resolved = float(value)
+    if resolved not in {0.25, 0.5}:
+        raise RuntimeError(
+            "Paper-position candidate risk must be 0.25 or 0.5 percent."
+        )
+
+    return resolved
+
+
 def observation_staging_path(
     store_path: Path,
     session_date: date,
@@ -452,7 +481,7 @@ def run_controlled_daily_session(
             state["open_positions"]
         ),
         existing_portfolio_risk_percent=sum(
-            float(item["candidate_risk_percent"])
+            candidate_risk_percent(item)
             for collection in (
                 state["pending_entries"],
                 state["open_positions"],

@@ -18,11 +18,13 @@ from app.paper_trading.ledger import (
     verify_ledger,
 )
 from app.paper_trading.orchestrator import (
+    candidate_risk_percent,
     observation_staging_path,
     run_controlled_daily_session,
 )
 from app.paper_trading.runtime_state import (
     read_runtime_state,
+    write_runtime_state,
 )
 
 SESSION_DATE = date(
@@ -43,6 +45,27 @@ SESSION_TIME = datetime(
 POLICY_FINGERPRINT = (
     "offline-test-fingerprint"
 )
+
+
+def test_candidate_risk_resolves_current_and_legacy_positions():
+    assert candidate_risk_percent(
+        {"candidate_risk_percent": 0.25}
+    ) == 0.25
+    assert candidate_risk_percent(
+        {
+            "candidate": {
+                "configured_risk_percent": 0.5,
+            }
+        }
+    ) == 0.5
+
+
+def test_candidate_risk_rejects_missing_metadata():
+    with pytest.raises(
+        RuntimeError,
+        match="missing candidate risk metadata",
+    ):
+        candidate_risk_percent({})
 
 
 def make_protocol(
@@ -632,6 +655,17 @@ def test_closed_position_enriches_originating_observation_once(
         session_date=(SESSION_DATE + timedelta(days=1)),
         collector=(lambda **_: second_candles),
         session_time_utc=(SESSION_TIME + timedelta(days=1)),
+    )
+
+    legacy_state = read_runtime_state(state_path)
+    legacy_position = legacy_state[
+        "open_positions"
+    ]["EUR_GBP"]
+    legacy_position.pop("candidate_risk_percent")
+    legacy_position.pop("shadow_risk_percent")
+    write_runtime_state(
+        state_path,
+        legacy_state,
     )
 
     close_candle = Candle(
