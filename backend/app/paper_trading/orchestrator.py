@@ -7,6 +7,9 @@ from app.intelligence.observation_store import (
     append_observation,
     read_observations,
 )
+from app.intelligence.outcome_store import (
+    enrich_observation_outcomes,
+)
 from app.market_data.models import Candle
 from app.paper_trading.collector import (
     collect_complete_daily_candles,
@@ -134,6 +137,7 @@ def run_controlled_daily_session(
     observation_store_path: Path | None = (
         DEFAULT_OBSERVATION_STORE_PATH
     ),
+    outcome_store_path: Path | None = None,
     protocol_path: Path = DEFAULT_PROTOCOL_PATH,
     protocol: dict | None = None,
     environment: str = "practice",
@@ -279,6 +283,21 @@ def run_controlled_daily_session(
                     )
                 )
 
+        outcome_summary = {
+            "outcomes_recorded": 0,
+            "outcome_duplicates": 0,
+        }
+        if (
+            observation_store_path is not None
+            and outcome_store_path is not None
+        ):
+            outcome_summary = enrich_observation_outcomes(
+                ledger_path=ledger_path,
+                observation_path=observation_store_path,
+                outcome_path=outcome_store_path,
+                candle_directory=candle_store_directory,
+            )
+
         state = read_runtime_state(
             state_path
         )
@@ -317,6 +336,7 @@ def run_controlled_daily_session(
             ),
             "broker_orders_sent": 0,
             **publish_summary,
+            **outcome_summary,
         }
 
     state = read_runtime_state(
@@ -599,6 +619,21 @@ def run_controlled_daily_session(
             )
         )
 
+    outcome_summary = {
+        "outcomes_recorded": 0,
+        "outcome_duplicates": 0,
+    }
+    if (
+        observation_store_path is not None
+        and outcome_store_path is not None
+    ):
+        outcome_summary = enrich_observation_outcomes(
+            ledger_path=ledger_path,
+            observation_path=observation_store_path,
+            outcome_path=outcome_store_path,
+            candle_directory=candle_store_directory,
+        )
+
     return {
         **evaluation,
         **transition,
@@ -634,4 +669,5 @@ def run_controlled_daily_session(
         ),
         "broker_orders_sent": 0,
         **publish_summary,
+        **outcome_summary,
     }

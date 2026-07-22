@@ -46,6 +46,12 @@ OBSERVATION_STORE_PATH = (
     / "intelligence_observations.jsonl"
 )
 
+OUTCOME_STORE_PATH = (
+    BACKEND_DIRECTORY
+    / "paper_ledger"
+    / "intelligence_outcomes.jsonl"
+)
+
 SessionRunner = Callable[..., dict[str, Any]]
 PolicyVerifier = Callable[[], str]
 CommitReader = Callable[[], tuple[str, bool]]
@@ -300,6 +306,7 @@ def execute(
         journal_path=JOURNAL_PATH,
         candle_store_directory=(CANDLE_STORE_DIRECTORY),
         observation_store_path=(OBSERVATION_STORE_PATH),
+        outcome_store_path=(OUTCOME_STORE_PATH),
         protocol_path=PROTOCOL_PATH,
         environment="practice",
         candle_count=(arguments.candle_count),

@@ -9,6 +9,7 @@ from scripts.run_prospective_paper_session import (
     JOURNAL_PATH,
     LEDGER_PATH,
     OBSERVATION_STORE_PATH,
+    OUTCOME_STORE_PATH,
     PROTOCOL_PATH,
     STATE_PATH,
     GuardedRunnerError,
@@ -252,6 +253,8 @@ def test_runner_uses_fixed_paths_and_practice_only():
 
     assert call["observation_store_path"] == OBSERVATION_STORE_PATH
 
+    assert call["outcome_store_path"] == OUTCOME_STORE_PATH
+
     assert summary["broker_orders_sent"] == 0
 
     assert summary["software_commit"] == "aa716ac"
@@ -267,6 +270,7 @@ def test_runtime_paths_are_inside_backend():
         PROTOCOL_PATH,
         CANDLE_STORE_DIRECTORY,
         OBSERVATION_STORE_PATH,
+        OUTCOME_STORE_PATH,
     ):
         assert isinstance(
             path,

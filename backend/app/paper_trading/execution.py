@@ -10,7 +10,6 @@ from app.trading.simulator import (
     calculate_trading_cost_percent,
 )
 
-
 STOP_LOSS_PERCENT = 1.5
 TAKE_PROFIT_PERCENT = 3.0
 
@@ -495,6 +494,11 @@ def build_account_position(
                 "signal_candle_timestamp"
             ]
         ),
+        "created_session_date": (
+            pending_entry[
+                "created_session_date"
+            ]
+        ),
         "entry_timestamp": (
             utc_isoformat(
                 entry_candle.timestamp
@@ -668,6 +672,11 @@ def fill_pending_entry(
                 "signal_candle_timestamp"
             ]
         ),
+        "created_session_date": (
+            pending_entry[
+                "created_session_date"
+            ]
+        ),
         "entry_timestamp": (
             candidate_position[
                 "entry_timestamp"
@@ -710,6 +719,11 @@ def fill_pending_entry(
         "signal_candle_timestamp": (
             position_pair[
                 "signal_candle_timestamp"
+            ]
+        ),
+        "created_session_date": (
+            pending_entry[
+                "created_session_date"
             ]
         ),
         "entry_timestamp": (

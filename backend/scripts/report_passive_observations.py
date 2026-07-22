@@ -22,6 +22,11 @@ def main() -> int:
         report = build_observation_report(
             ledger_path=LEDGER_PATH,
             observation_path=OBSERVATION_PATH,
+            outcome_path=(
+                PROJECT_ROOT
+                / "paper_ledger"
+                / "intelligence_outcomes.jsonl"
+            ),
         )
     except Exception as error:
         print(

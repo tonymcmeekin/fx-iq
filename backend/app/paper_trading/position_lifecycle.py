@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC
 
 from app.market_data.models import Candle
 from app.paper_trading.execution import (
@@ -731,6 +731,16 @@ def evaluate_open_position(
         "direction": (
             candidate[
                 "direction"
+            ]
+        ),
+        "signal_candle_timestamp": (
+            candidate[
+                "signal_candle_timestamp"
+            ]
+        ),
+        "created_session_date": (
+            candidate[
+                "created_session_date"
             ]
         ),
         "entry_timestamp": (

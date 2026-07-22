@@ -11,6 +11,7 @@ from app.intelligence.observations import (
     OBSERVATION_SCHEMA_VERSION,
     TradeObservation,
 )
+from app.intelligence.outcome_store import read_outcomes
 from app.paper_trading.ledger import verify_ledger
 
 
@@ -81,6 +82,7 @@ def build_observation_report(
     *,
     ledger_path: Path,
     observation_path: Path,
+    outcome_path: Path | None = None,
 ) -> dict[str, Any]:
     events = verify_ledger(ledger_path)
     observations, validation_errors = (
@@ -88,11 +90,35 @@ def build_observation_report(
             observation_path
         )
     )
+    outcomes = (
+        read_outcomes(outcome_path)
+        if outcome_path is not None
+        else []
+    )
     completed_events = [
         event
         for event in events
         if event["event_type"] == "SESSION_COMPLETED"
     ]
+    close_events = [
+        event
+        for event in events
+        if event["event_type"] == "PAPER_POSITION_CLOSED"
+    ]
+    close_event_ids = {
+        event["event_id"]
+        for event in close_events
+    }
+    outcome_close_ids = {
+        outcome.close_event_id
+        for outcome in outcomes
+    }
+    missing_outcome_close_event_ids = sorted(
+        close_event_ids - outcome_close_ids
+    )
+    orphaned_outcome_close_event_ids = sorted(
+        outcome_close_ids - close_event_ids
+    )
     completed_dates = {
         event["payload"].get("session_date")
         for event in completed_events
@@ -196,14 +222,21 @@ def build_observation_report(
             if missing_dates
             else []
         ),
+        *(
+            ["Paper close events are missing observation outcomes."]
+            if missing_outcome_close_event_ids
+            else []
+        ),
+        *(
+            ["Observation outcomes reference unknown close events."]
+            if orphaned_outcome_close_event_ids
+            else []
+        ),
     ]
     warnings = []
     if not observations:
         warnings.append("No passive observations are available.")
-    if not any(
-        observation.outcome is not None
-        for observation in observations
-    ):
+    if not outcomes:
         warnings.append("No observation outcomes are populated yet.")
     legacy_observations = sum(
         observation.schema_version
@@ -237,9 +270,20 @@ def build_observation_report(
         "rejected_observations": (
             len(observations) - len(accepted)
         ),
-        "outcomes_populated": sum(
-            observation.outcome is not None
-            for observation in observations
+        "paper_close_events": len(close_events),
+        "outcomes_populated": len(outcomes),
+        "missing_outcome_close_event_ids": (
+            missing_outcome_close_event_ids
+        ),
+        "orphaned_outcome_close_event_ids": (
+            orphaned_outcome_close_event_ids
+        ),
+        "outcome_profit_percent_total": round(
+            sum(outcome.profit_percent for outcome in outcomes),
+            6,
+        ),
+        "outcomes_by_exit_reason": _counter_rows(
+            [outcome.exit_reason for outcome in outcomes]
         ),
         "legacy_semantics_observations": (
             legacy_observations

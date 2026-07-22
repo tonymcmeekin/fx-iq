@@ -232,6 +232,11 @@ def test_completed_session_reconciles_staged_observations(
         "observation_reconciliation_pending",
         lambda _session_date: True,
     )
+    monkeypatch.setattr(
+        daily,
+        "outcome_reconciliation_pending",
+        lambda: False,
+    )
 
     result = daily.run_daily_operation(
         report_only=False,
@@ -249,6 +254,57 @@ def test_completed_session_reconciles_staged_observations(
     assert result["session_result"][
         "observations_published"
     ] == 6
+
+
+def test_completed_session_reconciles_missing_outcomes(
+    monkeypatch,
+):
+    completed_health = {
+        **healthy_report(),
+        "last_completed_session_date": "2026-07-22",
+    }
+    responses = iter(
+        [
+            completed_health,
+            {
+                "status": "ALREADY_COMPLETED",
+                "session_date": "2026-07-22",
+                "outcomes_recorded": 1,
+            },
+            completed_health,
+            operator_report(),
+        ]
+    )
+    monkeypatch.setattr(
+        daily,
+        "run_json_command",
+        lambda _command: next(responses),
+    )
+    monkeypatch.setattr(
+        daily,
+        "observation_reconciliation_pending",
+        lambda _session_date: False,
+    )
+    monkeypatch.setattr(
+        daily,
+        "outcome_reconciliation_pending",
+        lambda: True,
+    )
+
+    result = daily.run_daily_operation(
+        report_only=False,
+        use_oanda_practice=True,
+        session_date="2026-07-22",
+        candle_count=100,
+    )
+
+    assert result["session_executed"] is False
+    assert result[
+        "outcome_reconciliation_executed"
+    ] is True
+    assert result["session_result"][
+        "outcomes_recorded"
+    ] == 1
 
 
 def test_operator_must_explicitly_prohibit_live_trading():

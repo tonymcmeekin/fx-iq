@@ -23,11 +23,13 @@ if str(PROJECT_ROOT) not in sys.path:
         str(PROJECT_ROOT),
     )
 
+from app.intelligence.outcome_store import read_outcomes  # noqa: E402
 from app.paper_trading.daily_operation_journal import (  # noqa: E402
     DailyOperationJournalError,
     append_daily_operation_record,
     build_daily_operation_record,
 )
+from app.paper_trading.ledger import verify_ledger  # noqa: E402
 from app.paper_trading.orchestrator import (  # noqa: E402
     observation_staging_path,
 )
@@ -47,6 +49,9 @@ RECEIPT_DIRECTORY = PROJECT_ROOT / "paper_ledger" / "receipts"
 DAILY_OPERATION_JOURNAL_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operations.jsonl"
 OBSERVATION_STORE_PATH = (
     PROJECT_ROOT / "paper_ledger" / "intelligence_observations.jsonl"
+)
+OUTCOME_STORE_PATH = (
+    PROJECT_ROOT / "paper_ledger" / "intelligence_outcomes.jsonl"
 )
 
 
@@ -465,6 +470,25 @@ def observation_reconciliation_pending(
     ).exists()
 
 
+def outcome_reconciliation_pending() -> bool:
+    close_event_ids = {
+        event["event_id"]
+        for event in verify_ledger(
+            PROJECT_ROOT / "paper_ledger" / "events.jsonl"
+        )
+        if event["event_type"] == "PAPER_POSITION_CLOSED"
+    }
+    outcome_close_ids = {
+        outcome.close_event_id
+        for outcome in read_outcomes(
+            OUTCOME_STORE_PATH
+        )
+    }
+    return bool(
+        close_event_ids - outcome_close_ids
+    )
+
+
 def run_daily_operation(
     *,
     report_only: bool,
@@ -551,12 +575,18 @@ def run_daily_operation(
             target_session_date
         )
     )
+    reconcile_outcomes = (
+        target_session_date is not None
+        and session_already_completed
+        and outcome_reconciliation_pending()
+    )
 
     session_result: dict[str, Any] | None = None
 
     if not report_only and (
         not session_already_completed
         or reconcile_observations
+        or reconcile_outcomes
     ):
         session_result = run_json_command(
             build_session_command(
@@ -592,6 +622,9 @@ def run_daily_operation(
         "session_result": session_result,
         "observation_reconciliation_executed": (
             reconcile_observations
+        ),
+        "outcome_reconciliation_executed": (
+            reconcile_outcomes
         ),
         "preflight_health": preflight_health.get("status"),
         "postflight_health": postflight_health.get("status"),
