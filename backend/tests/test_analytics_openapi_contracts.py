@@ -13,6 +13,7 @@ def test_analytics_success_responses_use_named_models():
     schema = app.openapi()
 
     expected_models = {
+        "/analytics/alerts": "OperatorAlertReportResponse",
         "/analytics/evidence-cockpit": "EvidenceCockpitResponse",
         "/analytics/strategy-attribution": ("StrategyAttributionResponse"),
         "/analytics/prospective-paper-health": ("ProspectivePaperHealthResponse"),
@@ -33,6 +34,7 @@ def test_analytics_conflicts_document_error_model():
     schema = app.openapi()
 
     for path in (
+        "/analytics/alerts",
         "/analytics/evidence-cockpit",
         "/analytics/strategy-attribution",
         "/analytics/prospective-paper-health",
@@ -49,6 +51,7 @@ def test_analytics_conflicts_document_error_model():
 
 def test_real_analytics_responses_match_contracts():
     for path in (
+        "/analytics/alerts",
         "/analytics/evidence-cockpit",
         "/analytics/strategy-attribution",
         "/analytics/prospective-paper-health",

@@ -219,6 +219,67 @@ button {
   font-size: 0.88rem;
 }
 
+.operator-alerts {
+  margin-top: 1rem;
+}
+
+.operator-alerts h2 {
+  margin-top: 0.35rem;
+}
+
+.alert-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.alert-item {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.alert-item__heading,
+.alert-item__heading > div,
+.alert-lineage {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.alert-item__heading {
+  justify-content: space-between;
+}
+
+.alert-item__heading code {
+  color: #7f92a8;
+  font-size: 0.72rem;
+}
+
+.alert-item p {
+  margin: 0.85rem 0 0.45rem;
+  color: #c2cfdd;
+  line-height: 1.45;
+}
+
+.alert-item > small,
+.empty-alerts {
+  color: #91a1b5;
+  line-height: 1.45;
+}
+
+.alert-lineage {
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #26394f;
+  color: #7f92a8;
+  font-size: 0.72rem;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -389,6 +450,10 @@ footer {
 
   .evidence-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .alert-list {
+    grid-template-columns: 1fr;
   }
 }
 

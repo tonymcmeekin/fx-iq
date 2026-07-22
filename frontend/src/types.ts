@@ -94,6 +94,38 @@ export interface EvidenceCockpitResponse {
   protocol_live_trading_permitted: false;
 }
 
+export type OperatorAlertSeverity = "INFO" | "WARNING" | "CRITICAL";
+
+export interface OperatorAlert {
+  alert_id: string;
+  alert_type: string;
+  severity: OperatorAlertSeverity;
+  title: string;
+  message: string;
+  detected_at_utc: string;
+  evidence_timestamp_utc: string | null;
+  market: string | null;
+  session_date: string | null;
+  software_commit: string;
+  policy_fingerprint: string;
+  recommended_action: string;
+  requires_operator_action: boolean;
+  delivery_mode: "NOTIFICATION_ONLY";
+  order_action_permitted: false;
+}
+
+export interface OperatorAlertReportResponse {
+  status: string;
+  generated_at_utc: string;
+  delivery_mode: "NOTIFICATION_ONLY";
+  active_alert_count: number;
+  critical_alert_count: number;
+  warning_alert_count: number;
+  alerts: OperatorAlert[];
+  safe_for_live_trading: false;
+  protocol_live_trading_permitted: false;
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -140,6 +172,7 @@ export interface DashboardData {
   readiness: ReadinessResponse;
   explanation: ReadinessExplanationResponse;
   cockpit: EvidenceCockpitResponse;
+  alerts: OperatorAlertReportResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

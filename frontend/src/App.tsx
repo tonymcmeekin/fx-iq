@@ -10,6 +10,7 @@ import type {
   DashboardData,
   DecisionClassification,
   DecisionComponentScores,
+  OperatorAlertSeverity,
   ScannerSource,
 } from "./types";
 
@@ -91,6 +92,18 @@ function decisionPanelClass(
   }
 
   return "decision-panel decision-panel--reject";
+}
+
+function alertBadgeClass(severity: OperatorAlertSeverity): string {
+  if (severity === "CRITICAL") {
+    return "badge badge--danger";
+  }
+
+  if (severity === "WARNING") {
+    return "badge badge--warning";
+  }
+
+  return "badge badge--neutral";
 }
 
 function ProgressPanel({
@@ -265,6 +278,7 @@ function App() {
     readiness,
     explanation,
     cockpit,
+    alerts,
     decision,
     scanner,
   } = state.data;
@@ -457,6 +471,56 @@ function App() {
         <p className="evidence-safety">
           Simulation only. This cockpit can inspect evidence, but it cannot
           submit or authorize broker orders.
+        </p>
+      </section>
+
+      <section className="panel operator-alerts">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Notification only</span>
+            <h2>Active operator alerts</h2>
+          </div>
+          <span
+            className={
+              alerts.critical_alert_count > 0
+                ? "badge badge--danger"
+                : "badge badge--neutral"
+            }
+          >
+            {alerts.active_alert_count} active
+          </span>
+        </div>
+
+        {alerts.alerts.length === 0 ? (
+          <p className="empty-alerts">No active operator alerts.</p>
+        ) : (
+          <div className="alert-list">
+            {alerts.alerts.map((alert) => (
+              <article className="alert-item" key={alert.alert_id}>
+                <div className="alert-item__heading">
+                  <div>
+                    <span className={alertBadgeClass(alert.severity)}>
+                      {alert.severity}
+                    </span>
+                    <strong>{alert.title}</strong>
+                  </div>
+                  <code>{alert.alert_id.slice(0, 10)}</code>
+                </div>
+                <p>{alert.message}</p>
+                <small>{alert.recommended_action}</small>
+                <div className="alert-lineage">
+                  <span>{alert.market ?? "Portfolio"}</span>
+                  <span>Session {alert.session_date ?? "pending"}</span>
+                  <span>Commit {alert.software_commit}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        <p className="evidence-safety">
+          Alerts describe verified state transitions only. They cannot place,
+          modify, or close orders.
         </p>
       </section>
 

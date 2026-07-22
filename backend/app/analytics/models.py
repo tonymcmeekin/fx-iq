@@ -308,3 +308,37 @@ class EvidenceCockpitResponse(AnalyticsSafetyResponse):
     blocking_issues: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     readiness_next_actions: list[str] = Field(default_factory=list)
+
+
+class OperatorAlert(AnalyticsResponseModel):
+    """One stable notification-only operator alert."""
+
+    alert_id: str
+    alert_type: str
+    severity: Literal["INFO", "WARNING", "CRITICAL"]
+    status: Literal["ACTIVE"] = "ACTIVE"
+    title: str
+    message: str
+    detected_at_utc: str
+    evidence_timestamp_utc: str | None = None
+    market: str | None = None
+    session_date: str | None = None
+    software_commit: str
+    policy_fingerprint: str
+    recommended_action: str
+    requires_operator_action: bool = False
+    delivery_mode: Literal["NOTIFICATION_ONLY"] = "NOTIFICATION_ONLY"
+    order_action_permitted: Literal[False] = False
+
+
+class OperatorAlertReportResponse(AnalyticsSafetyResponse):
+    """Active alerts derived without mutation or external delivery."""
+
+    schema_version: int = 1
+    status: str
+    generated_at_utc: str
+    delivery_mode: Literal["NOTIFICATION_ONLY"] = "NOTIFICATION_ONLY"
+    active_alert_count: int = Field(default=0, ge=0)
+    critical_alert_count: int = Field(default=0, ge=0)
+    warning_alert_count: int = Field(default=0, ge=0)
+    alerts: list[OperatorAlert] = Field(default_factory=list)

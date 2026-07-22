@@ -20,9 +20,14 @@ from app.analytics.models import (
     AnalyticsReadinessExplanationResponse,
     AnalyticsReadinessResponse,
     EvidenceCockpitResponse,
+    OperatorAlertReportResponse,
     OperatorStatusResponse,
     ProspectivePaperHealthResponse,
     StrategyAttributionResponse,
+)
+from app.analytics.operator_alert_reporting import (
+    OperatorAlertReportError,
+    build_operator_alert_report,
 )
 from app.analytics.operator_status_reporting import (
     OperatorStatusReportError,
@@ -55,6 +60,31 @@ router = APIRouter(
     prefix="/analytics",
     tags=["Analytics"],
 )
+
+
+@router.get(
+    "/alerts",
+    response_model=OperatorAlertReportResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def get_operator_alerts() -> dict[str, Any]:
+    """Return active notification-only alerts from verified evidence."""
+    try:
+        return build_operator_alert_report()
+    except OperatorAlertReportError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
 
 
 @router.get(
