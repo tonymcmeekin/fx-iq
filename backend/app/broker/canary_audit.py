@@ -54,6 +54,19 @@ def _parse(text: str) -> list[dict[str, Any]]:
         record_hash = payload.pop("record_hash", None)
         if not isinstance(record_hash, str) or _hash(payload) != record_hash:
             raise CanaryAuditError(f"Canary audit hash mismatch at line {line_number}.")
+        expected_invariants = {
+            "status": "PRACTICE_REHEARSAL_COMPLETE",
+            "environment": "practice",
+            "units": 1,
+            "practice_entry_orders_submitted": 1,
+            "practice_close_orders_submitted": 1,
+            "live_orders_submitted": 0,
+            "position_verified_open": True,
+            "position_verified_closed": True,
+            "live_canary_build_enabled": False,
+        }
+        if any(record.get(key) != value for key, value in expected_invariants.items()):
+            raise CanaryAuditError(f"Canary audit safety invariant failed at line {line_number}.")
         records.append(record)
         seen_ids.add(rehearsal_id)
         previous = record_hash

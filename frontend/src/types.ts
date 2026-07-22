@@ -356,6 +356,28 @@ export interface AiProviderReadinessResponse {
   safety: EvidenceBriefingResponse["safety"];
 }
 
+export interface CanaryReadinessResponse {
+  status: "NO_EVIDENCE" | "REHEARSING" | "REHEARSAL_TARGET_MET" | "INTEGRITY_ERROR";
+  rehearsal_count: number;
+  required_rehearsals: number;
+  remaining_rehearsals: number;
+  operational_rehearsal_target_met: boolean;
+  all_positions_verified_closed: boolean;
+  practice_entry_orders_submitted: number;
+  practice_close_orders_submitted: number;
+  live_orders_submitted: 0;
+  latest_rehearsal_id: string | null;
+  latest_completed_at_utc: string | null;
+  latest_instrument: string | null;
+  live_canary_build_enabled: false;
+  live_execution_locked: true;
+  live_trading_allowed: false;
+  network_calls_made: 0;
+  files_changed: 0;
+  blocking_issues: string[];
+  next_actions: string[];
+}
+
 export interface SimulatedHostedTrialResponse {
   status: "PASS";
   executed_at_utc: string;
@@ -424,6 +446,7 @@ export interface DashboardData {
   aiInsights: AiInsightListResponse;
   aiGovernance: AiGovernanceResponse;
   aiProviderReadiness: AiProviderReadinessResponse;
+  canaryReadiness: CanaryReadinessResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

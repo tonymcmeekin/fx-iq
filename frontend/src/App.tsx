@@ -534,6 +534,7 @@ function App() {
     aiInsights,
     aiGovernance,
     aiProviderReadiness,
+    canaryReadiness,
     decision,
     scanner,
   } = state.data;
@@ -654,7 +655,26 @@ function App() {
           </strong>
           <div>
             <span className="badge badge--danger">
-              No execution controls
+              Build locked
+            </span>
+          </div>
+        </article>
+
+        <article className="card">
+          <span>Canary rehearsals</span>
+          <strong>{formatLabel(canaryReadiness.status)}</strong>
+          <div>
+            <span
+              className={
+                canaryReadiness.status === "INTEGRITY_ERROR"
+                  ? "badge badge--danger"
+                  : canaryReadiness.operational_rehearsal_target_met
+                    ? "badge badge--positive"
+                    : "badge badge--warning"
+              }
+            >
+              {canaryReadiness.rehearsal_count}/
+              {canaryReadiness.required_rehearsals} closed · live locked
             </span>
           </div>
         </article>

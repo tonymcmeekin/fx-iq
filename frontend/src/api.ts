@@ -3,6 +3,7 @@ import type {
   AiInsightListResponse,
   AiGovernanceResponse,
   AiProviderReadinessResponse,
+  CanaryReadinessResponse,
   AnnotationAppendResponse,
   AnnotationCategory,
   AnnotationListResponse,
@@ -130,7 +131,7 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 export async function fetchDashboardData(
   scannerSource: ScannerSource = "synthetic",
 ): Promise<DashboardData> {
-  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, aiInsights, aiGovernance, aiProviderReadiness, decision, scanner] =
+  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, aiInsights, aiGovernance, aiProviderReadiness, canaryReadiness, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
       requestJson<ReadinessExplanationResponse>(
@@ -151,6 +152,7 @@ export async function fetchDashboardData(
       fetchAiInsights(),
       fetchAiGovernance(),
       fetchAiProviderReadiness(),
+      fetchCanaryReadiness(),
       fetchDecisionEvaluation(),
       fetchScannerOpportunities(scannerSource),
     ]);
@@ -167,6 +169,7 @@ export async function fetchDashboardData(
     aiInsights,
     aiGovernance,
     aiProviderReadiness,
+    canaryReadiness,
     decision,
     scanner,
   };
@@ -182,6 +185,10 @@ export async function fetchAiGovernance(): Promise<AiGovernanceResponse> {
 
 export async function fetchAiProviderReadiness(): Promise<AiProviderReadinessResponse> {
   return requestJson<AiProviderReadinessResponse>("/ai/provider-readiness");
+}
+
+export async function fetchCanaryReadiness(): Promise<CanaryReadinessResponse> {
+  return requestJson<CanaryReadinessResponse>("/broker/canary-readiness");
 }
 
 export async function runSimulatedHostedAiTrial(): Promise<SimulatedHostedTrialResponse> {

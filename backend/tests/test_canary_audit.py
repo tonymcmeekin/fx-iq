@@ -62,3 +62,19 @@ def test_canary_audit_rejects_live_order_result(tmp_path):
     unsafe = result().__class__(**{**result().__dict__, "live_orders_submitted": 1})
     with pytest.raises(CanaryAuditError, match="live-order"):
         append_canary_audit(tmp_path / "canary.jsonl", unsafe)
+
+
+def test_canary_audit_rejects_unsafe_record_even_with_recomputed_hash(tmp_path):
+    from app.broker import canary_audit
+
+    path = tmp_path / "canary.jsonl"
+    append_canary_audit(path, result())
+    payload = json.loads(path.read_text())
+    payload["live_orders_submitted"] = 1
+    unhashed = dict(payload)
+    unhashed.pop("record_hash")
+    payload["record_hash"] = canary_audit._hash(unhashed)
+    path.write_text(canary_audit._canonical(payload) + "\n")
+
+    with pytest.raises(CanaryAuditError, match="safety invariant"):
+        read_canary_audit(path)
