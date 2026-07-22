@@ -28,6 +28,9 @@ from app.paper_trading.daily_operation_journal import (  # noqa: E402
     append_daily_operation_record,
     build_daily_operation_record,
 )
+from app.paper_trading.orchestrator import (  # noqa: E402
+    observation_staging_path,
+)
 from app.paper_trading.session_receipts import (  # noqa: E402
     SessionReceiptError,
     write_session_receipt,
@@ -38,9 +41,13 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 SESSION_SCRIPT = SCRIPTS_DIR / "run_prospective_paper_session.py"
 HEALTH_SCRIPT = SCRIPTS_DIR / "check_prospective_paper_health.py"
 OPERATOR_SCRIPT = SCRIPTS_DIR / "report_prospective_paper_operator_status.py"
+RECOVERY_SCRIPT = SCRIPTS_DIR / "recover_incomplete_paper_session.py"
 LOCK_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operation.lock"
 RECEIPT_DIRECTORY = PROJECT_ROOT / "paper_ledger" / "receipts"
 DAILY_OPERATION_JOURNAL_PATH = PROJECT_ROOT / "paper_ledger" / "daily_operations.jsonl"
+OBSERVATION_STORE_PATH = (
+    PROJECT_ROOT / "paper_ledger" / "intelligence_observations.jsonl"
+)
 
 
 class DailyOperationError(RuntimeError):
@@ -327,6 +334,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--recover-incomplete-session",
+        action="store_true",
+        help=(
+            "If preflight health is degraded by the requested "
+            "incomplete session, apply the guarded backed-up "
+            "recovery before retrying."
+        ),
+    )
+
+    parser.add_argument(
         "--session-date",
         help=("Session date in YYYY-MM-DD format. Passed through to the prospective paper runner."),
     )
@@ -439,12 +456,22 @@ def require_safe_operator_state(
         raise DailyOperationError("Final operator report is not runtime healthy.")
 
 
+def observation_reconciliation_pending(
+    session_date: str,
+) -> bool:
+    return observation_staging_path(
+        OBSERVATION_STORE_PATH,
+        date.fromisoformat(session_date),
+    ).exists()
+
+
 def run_daily_operation(
     *,
     report_only: bool,
     use_oanda_practice: bool,
     session_date: str | None,
     candle_count: int | None,
+    recover_incomplete_session: bool = False,
 ) -> dict[str, Any]:
     if report_only and use_oanda_practice:
         raise DailyOperationError("--report-only cannot be combined with --use-oanda-practice.")
@@ -454,6 +481,12 @@ def run_daily_operation(
             "A paper session requires explicit "
             "--use-oanda-practice permission. Use --report-only "
             "for a read-only operation."
+        )
+
+    if report_only and recover_incomplete_session:
+        raise DailyOperationError(
+            "--recover-incomplete-session cannot be "
+            "combined with --report-only."
         )
 
     health_command = [
@@ -477,6 +510,31 @@ def run_daily_operation(
     preflight_health = run_json_command(
         health_command,
     )
+
+    recovery_result: dict[str, Any] | None = None
+
+    if (
+        preflight_health.get("status") != "HEALTHY"
+        and recover_incomplete_session
+    ):
+        if target_session_date is None:
+            raise DailyOperationError(
+                "Recovery requires an explicit target session date."
+            )
+
+        recovery_result = run_json_command(
+            [
+                sys.executable,
+                str(RECOVERY_SCRIPT),
+                "--session-date",
+                target_session_date,
+                "--apply",
+            ]
+        )
+        preflight_health = run_json_command(
+            health_command,
+        )
+
     require_healthy(
         preflight_health,
         stage="preflight",
@@ -486,10 +544,20 @@ def run_daily_operation(
         target_session_date is not None
         and preflight_health.get("last_completed_session_date") == target_session_date
     )
+    reconcile_observations = (
+        target_session_date is not None
+        and session_already_completed
+        and observation_reconciliation_pending(
+            target_session_date
+        )
+    )
 
     session_result: dict[str, Any] | None = None
 
-    if not report_only and not session_already_completed:
+    if not report_only and (
+        not session_already_completed
+        or reconcile_observations
+    ):
         session_result = run_json_command(
             build_session_command(
                 use_oanda_practice=use_oanda_practice,
@@ -522,6 +590,9 @@ def run_daily_operation(
         "session_already_completed": session_already_completed,
         "session_executed": (not report_only and not session_already_completed),
         "session_result": session_result,
+        "observation_reconciliation_executed": (
+            reconcile_observations
+        ),
         "preflight_health": preflight_health.get("status"),
         "postflight_health": postflight_health.get("status"),
         "operator_status": operator_report.get("status"),
@@ -537,6 +608,7 @@ def run_daily_operation(
         "protocol_live_trading_permitted": False,
         "live_trading_decision": "PROHIBITED_BY_DAILY_OPERATION",
         "broker_orders_sent": operator_report.get("broker_orders_sent"),
+        "incomplete_session_recovery": recovery_result,
     }
 
 
@@ -643,6 +715,9 @@ def main(
                 use_oanda_practice=arguments.use_oanda_practice,
                 session_date=arguments.session_date,
                 candle_count=arguments.candle_count,
+                recover_incomplete_session=(
+                    arguments.recover_incomplete_session
+                ),
             )
 
             receipt_path = write_completed_session_receipt(

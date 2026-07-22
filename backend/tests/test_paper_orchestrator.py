@@ -15,6 +15,7 @@ from app.paper_trading.ledger import (
     verify_ledger,
 )
 from app.paper_trading.orchestrator import (
+    observation_staging_path,
     run_controlled_daily_session,
 )
 from app.paper_trading.runtime_state import (
@@ -133,6 +134,35 @@ def make_candles(
     return candles
 
 
+def make_observation_candles(
+    symbol: str = "EUR_GBP",
+) -> list[Candle]:
+    start = datetime(
+        2026,
+        5,
+        16,
+        21,
+        0,
+        tzinfo=UTC,
+    )
+
+    return [
+        Candle(
+            symbol=symbol,
+            timeframe="D",
+            timestamp=(
+                start + timedelta(days=index)
+            ),
+            open=1.0000,
+            high=1.0100,
+            low=0.9900,
+            close=1.0000,
+            volume=1000,
+        )
+        for index in range(60)
+    ]
+
+
 def test_orchestrator_collects_frozen_markets_in_order(
     tmp_path,
 ):
@@ -208,29 +238,9 @@ def test_orchestrator_records_passive_observations(
         tmp_path / "intelligence_observations.jsonl"
     )
 
-    observation_candles = [
-        Candle(
-            symbol="EUR_GBP",
-            timeframe="D",
-            timestamp=(
-                datetime(
-                    2026,
-                    5,
-                    16,
-                    21,
-                    0,
-                    tzinfo=UTC,
-                )
-                + timedelta(days=index)
-            ),
-            open=1.0000,
-            high=1.0100,
-            low=0.9900,
-            close=1.0000,
-            volume=1000,
-        )
-        for index in range(60)
-    ]
+    observation_candles = (
+        make_observation_candles()
+    )
 
     result = run_controlled_daily_session(
         api_token="test-token",
@@ -257,6 +267,78 @@ def test_orchestrator_records_passive_observations(
     assert len(observations) == 1
     assert observations[0].recorded_at_utc == SESSION_TIME
     assert observations[0].recorded_at_utc.tzinfo is not None
+
+
+def test_observations_publish_only_after_transition_commit(
+    tmp_path,
+    monkeypatch,
+):
+    from app.paper_trading import orchestrator
+
+    observation_path = (
+        tmp_path / "intelligence_observations.jsonl"
+    )
+    staging_path = observation_staging_path(
+        observation_path,
+        SESSION_DATE,
+    )
+    original_transition = (
+        orchestrator.run_recoverable_transition
+    )
+
+    def fail_transition(**_kwargs):
+        raise RuntimeError(
+            "transition unavailable"
+        )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "run_recoverable_transition",
+        fail_transition,
+    )
+
+    arguments = {
+        "api_token": "test-token",
+        "session_date": SESSION_DATE,
+        "ledger_path": (tmp_path / "events.jsonl"),
+        "state_path": (tmp_path / "state.json"),
+        "journal_path": (tmp_path / "transition.json"),
+        "candle_store_directory": (tmp_path / "candles"),
+        "observation_store_path": observation_path,
+        "protocol": make_protocol(),
+        "collector": (
+            lambda **_: make_observation_candles()
+        ),
+        "policy_verifier": (lambda: POLICY_FINGERPRINT),
+        "session_time_utc": SESSION_TIME,
+        "software_commit": "test-commit",
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match="transition unavailable",
+    ):
+        run_controlled_daily_session(
+            **arguments
+        )
+
+    assert observation_path.exists() is False
+    assert len(read_observations(staging_path)) == 1
+
+    monkeypatch.setattr(
+        orchestrator,
+        "run_recoverable_transition",
+        original_transition,
+    )
+
+    result = run_controlled_daily_session(
+        **arguments
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert result["observations_published"] == 1
+    assert len(read_observations(observation_path)) == 1
+    assert staging_path.exists() is False
 
 
 def test_actionable_signal_becomes_pending_entry(

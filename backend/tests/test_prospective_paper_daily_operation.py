@@ -147,6 +147,110 @@ def test_unhealthy_preflight_stops_operation(monkeypatch):
         )
 
 
+def test_recovery_can_restore_unhealthy_preflight(
+    monkeypatch,
+):
+    commands = []
+    responses = iter(
+        [
+            {
+                "status": "UNHEALTHY",
+                "broker_orders_sent": 0,
+            },
+            {
+                "status": "RECOVERED",
+                "broker_orders_sent": 0,
+            },
+            healthy_report(),
+            {
+                "status": "COMPLETED",
+                "session_date": "2026-07-22",
+            },
+            healthy_report(),
+            operator_report(),
+        ]
+    )
+
+    def fake_run(command):
+        commands.append(command)
+        return next(responses)
+
+    monkeypatch.setattr(
+        daily,
+        "run_json_command",
+        fake_run,
+    )
+
+    result = daily.run_daily_operation(
+        report_only=False,
+        use_oanda_practice=True,
+        session_date="2026-07-22",
+        candle_count=100,
+        recover_incomplete_session=True,
+    )
+
+    assert str(daily.RECOVERY_SCRIPT) in commands[1]
+    assert "--apply" in commands[1]
+    assert result[
+        "incomplete_session_recovery"
+    ]["status"] == "RECOVERED"
+    assert result["session_executed"] is True
+
+
+def test_completed_session_reconciles_staged_observations(
+    monkeypatch,
+):
+    commands = []
+    completed_health = {
+        **healthy_report(),
+        "last_completed_session_date": "2026-07-22",
+    }
+    responses = iter(
+        [
+            completed_health,
+            {
+                "status": "ALREADY_COMPLETED",
+                "session_date": "2026-07-22",
+                "observations_published": 6,
+            },
+            completed_health,
+            operator_report(),
+        ]
+    )
+
+    def fake_run(command):
+        commands.append(command)
+        return next(responses)
+
+    monkeypatch.setattr(
+        daily,
+        "run_json_command",
+        fake_run,
+    )
+    monkeypatch.setattr(
+        daily,
+        "observation_reconciliation_pending",
+        lambda _session_date: True,
+    )
+
+    result = daily.run_daily_operation(
+        report_only=False,
+        use_oanda_practice=True,
+        session_date="2026-07-22",
+        candle_count=100,
+    )
+
+    assert len(commands) == 4
+    assert result["session_already_completed"] is True
+    assert result["session_executed"] is False
+    assert result[
+        "observation_reconciliation_executed"
+    ] is True
+    assert result["session_result"][
+        "observations_published"
+    ] == 6
+
+
 def test_operator_must_explicitly_prohibit_live_trading():
     report = operator_report()
     report["safe_for_live_trading"] = True

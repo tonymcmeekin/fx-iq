@@ -2,6 +2,11 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from app.intelligence.observation_store import (
+    ObservationStoreError,
+    append_observation,
+    read_observations,
+)
 from app.market_data.models import Candle
 from app.paper_trading.collector import (
     collect_complete_daily_candles,
@@ -59,6 +64,61 @@ CollectorFunction = Callable[
     ...,
     list[Candle],
 ]
+
+
+def observation_staging_path(
+    store_path: Path,
+    session_date: date,
+) -> Path:
+    return store_path.with_name(
+        f".{store_path.stem}."
+        f"{session_date.isoformat()}.pending.jsonl"
+    )
+
+
+def publish_staged_observations(
+    *,
+    staging_path: Path,
+    store_path: Path,
+    session_date: date,
+) -> dict[str, int]:
+    observations = read_observations(
+        staging_path
+    )
+
+    if any(
+        observation.session_date
+        != session_date
+        for observation in observations
+    ):
+        raise ObservationStoreError(
+            "Staged observation belongs to a "
+            "different session date."
+        )
+
+    published = 0
+    duplicates = 0
+
+    for observation in observations:
+        try:
+            append_observation(
+                store_path,
+                observation,
+            )
+            published += 1
+        except ObservationStoreError as error:
+            if "duplicate" not in str(error).lower():
+                raise
+            duplicates += 1
+
+    staging_path.unlink(
+        missing_ok=True
+    )
+
+    return {
+        "observations_published": published,
+        "observation_publish_duplicates": duplicates,
+    }
 
 
 def run_controlled_daily_session(
@@ -197,6 +257,28 @@ def run_controlled_daily_session(
         ledger_path,
         session_date,
     ):
+        publish_summary = {
+            "observations_published": 0,
+            "observation_publish_duplicates": 0,
+        }
+
+        if observation_store_path is not None:
+            staging_path = observation_staging_path(
+                observation_store_path,
+                session_date,
+            )
+
+            if staging_path.exists():
+                publish_summary = (
+                    publish_staged_observations(
+                        staging_path=staging_path,
+                        store_path=(
+                            observation_store_path
+                        ),
+                        session_date=session_date,
+                    )
+                )
+
         state = read_runtime_state(
             state_path
         )
@@ -234,6 +316,7 @@ def run_controlled_daily_session(
                 ]
             ),
             "broker_orders_sent": 0,
+            **publish_summary,
         }
 
     state = read_runtime_state(
@@ -305,6 +388,15 @@ def run_controlled_daily_session(
             market
         ] = candles
 
+    staging_path = (
+        observation_staging_path(
+            observation_store_path,
+            session_date,
+        )
+        if observation_store_path is not None
+        else None
+    )
+
     evaluation = run_daily_evaluation(
         ledger_path=ledger_path,
         session_date=session_date,
@@ -320,7 +412,7 @@ def run_controlled_daily_session(
             software_commit
         ),
         observation_store_path=(
-            observation_store_path
+            staging_path
         ),
         append_completion_event=False,
     )
@@ -476,6 +568,23 @@ def run_controlled_daily_session(
             "final completion event."
         )
 
+    publish_summary = {
+        "observations_published": 0,
+        "observation_publish_duplicates": 0,
+    }
+
+    if (
+        observation_store_path is not None
+        and staging_path is not None
+    ):
+        publish_summary = (
+            publish_staged_observations(
+                staging_path=staging_path,
+                store_path=observation_store_path,
+                session_date=session_date,
+            )
+        )
+
     return {
         **evaluation,
         **transition,
@@ -510,4 +619,5 @@ def run_controlled_daily_session(
             ]
         ),
         "broker_orders_sent": 0,
+        **publish_summary,
     }
