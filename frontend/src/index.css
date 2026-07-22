@@ -286,6 +286,52 @@ button {
   font-size: 0.75rem;
 }
 
+.ai-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.button--compact {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.ai-history {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.ai-history > div,
+.ai-history article > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-history h3 {
+  margin: 0;
+}
+
+.ai-history article {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #293c53;
+}
+
+.ai-history article p {
+  margin: 0.5rem 0;
+  color: #c2cfdd;
+}
+
+.ai-history small {
+  color: #91a1b5;
+}
+
 .operator-alerts h2 {
   margin-top: 0.35rem;
 }
@@ -873,6 +919,11 @@ footer {
 
   .ai-briefing-grid article:last-child {
     grid-column: auto;
+  }
+
+  .ai-heading-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .portfolio-metrics,

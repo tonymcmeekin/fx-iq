@@ -1,4 +1,6 @@
 import type {
+  AiInsightAppendResponse,
+  AiInsightListResponse,
   AnnotationAppendResponse,
   AnnotationCategory,
   AnnotationListResponse,
@@ -125,7 +127,7 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 export async function fetchDashboardData(
   scannerSource: ScannerSource = "synthetic",
 ): Promise<DashboardData> {
-  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, decision, scanner] =
+  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, aiBriefing, aiInsights, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
       requestJson<ReadinessExplanationResponse>(
@@ -143,6 +145,7 @@ export async function fetchDashboardData(
       ),
       fetchOperatorAnnotations(),
       requestJson<EvidenceBriefingResponse>("/ai/evidence-briefing"),
+      fetchAiInsights(),
       fetchDecisionEvaluation(),
       fetchScannerOpportunities(scannerSource),
     ]);
@@ -156,9 +159,29 @@ export async function fetchDashboardData(
     outcomes,
     annotations,
     aiBriefing,
+    aiInsights,
     decision,
     scanner,
   };
+}
+
+export async function fetchAiInsights(): Promise<AiInsightListResponse> {
+  return requestJson<AiInsightListResponse>("/ai/evidence-insights");
+}
+
+export async function saveOfflineAiInsight(
+  idempotencyKey: string,
+): Promise<AiInsightAppendResponse> {
+  return requestJson<AiInsightAppendResponse>("/ai/evidence-briefing", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      idempotency_key: idempotencyKey,
+      provider_mode: "OFFLINE",
+    }),
+  });
 }
 
 export async function fetchOperatorAnnotations(): Promise<AnnotationListResponse> {

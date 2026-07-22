@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createOperatorAnnotation,
+  fetchAiInsights,
   fetchDashboardData,
   fetchOperatorAnnotations,
   fetchScannerOpportunities,
+  saveOfflineAiInsight,
 } from "./api";
 import { MarketScanner } from "./components/MarketScanner";
 import type {
@@ -180,6 +182,11 @@ function App() {
   const [annotationError, setAnnotationError] = useState<string | null>(
     null,
   );
+  const [insightStatus, setInsightStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const insightRequestKey = useRef<string | null>(null);
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -308,6 +315,38 @@ function App() {
     [annotationCategory, annotationNote, annotationSubject, state],
   );
 
+  const saveBriefing = useCallback(async () => {
+    setInsightStatus("saving");
+    setInsightError(null);
+    insightRequestKey.current ??= crypto.randomUUID();
+
+    try {
+      await saveOfflineAiInsight(insightRequestKey.current);
+      const aiInsights = await fetchAiInsights();
+      setState((current) => {
+        if (
+          current.status !== "ready" &&
+          current.status !== "refreshing"
+        ) {
+          return current;
+        }
+        return {
+          status: "ready",
+          data: { ...current.data, aiInsights },
+        };
+      });
+      insightRequestKey.current = null;
+      setInsightStatus("saved");
+    } catch (error: unknown) {
+      setInsightStatus("error");
+      setInsightError(
+        error instanceof Error
+          ? error.message
+          : "The briefing could not be saved.",
+      );
+    }
+  }, []);
+
   if (state.status === "loading") {
     return (
       <main className="state-screen">
@@ -347,6 +386,7 @@ function App() {
     outcomes,
     annotations,
     aiBriefing,
+    aiInsights,
     decision,
     scanner,
   } = state.data;
@@ -554,11 +594,23 @@ function App() {
             <span className="eyebrow">Guarded AI evidence analyst</span>
             <h2>Evidence briefing</h2>
           </div>
-          <span className="badge badge--positive">
-            {aiBriefing.provider_mode === "OFFLINE"
-              ? "Offline · no network"
-              : "Hosted · sanitized"}
-          </span>
+          <div className="ai-heading-actions">
+            <span className="badge badge--positive">
+              {aiBriefing.provider_mode === "OFFLINE"
+                ? "Offline · no network"
+                : "Hosted · sanitized"}
+            </span>
+            <button
+              className="button button--compact"
+              type="button"
+              disabled={insightStatus === "saving"}
+              onClick={() => void saveBriefing()}
+            >
+              {insightStatus === "saving"
+                ? "Saving…"
+                : "Save verified briefing"}
+            </button>
+          </div>
         </div>
 
         <p className="ai-headline">{aiBriefing.briefing.headline}</p>
@@ -612,6 +664,46 @@ function App() {
               {citation.label}
             </code>
           ))}
+        </div>
+
+        {insightStatus === "saved" && (
+          <p className="annotation-message annotation-message--success">
+            Briefing appended to the verified AI insight chain.
+          </p>
+        )}
+        {insightStatus === "error" && insightError && (
+          <p className="annotation-message annotation-message--error">
+            {insightError}
+          </p>
+        )}
+
+        <div className="ai-history">
+          <div>
+            <h3>Verified insight history</h3>
+            <span className="badge badge--neutral">
+              {aiInsights.insight_count} saved
+            </span>
+          </div>
+          {aiInsights.insights.length === 0 ? (
+            <p>No AI briefings have been saved.</p>
+          ) : (
+            aiInsights.insights
+              .slice(-3)
+              .reverse()
+              .map((insight) => (
+                <article key={insight.insight_id}>
+                  <div>
+                    <strong>Briefing #{insight.sequence}</strong>
+                    <code>{insight.record_hash.slice(0, 10)}</code>
+                  </div>
+                  <p>{insight.briefing.headline}</p>
+                  <small>
+                    {formatLabel(insight.provider_mode)} · {insight.model} ·{" "}
+                    {new Date(insight.created_at_utc).toLocaleString()}
+                  </small>
+                </article>
+              ))
+          )}
         </div>
 
         <p className="evidence-safety">

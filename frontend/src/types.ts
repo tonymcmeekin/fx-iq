@@ -277,6 +277,34 @@ export interface EvidenceBriefingResponse {
   };
 }
 
+export interface AiInsightRecord {
+  sequence: number;
+  insight_id: string;
+  idempotency_key: string;
+  created_at_utc: string;
+  provider_mode: "OFFLINE" | "OPENAI";
+  model: string;
+  prompt_fingerprint: string;
+  input_fingerprint: string;
+  briefing: EvidenceBriefingResponse["briefing"];
+  previous_hash: string;
+  record_hash: string;
+}
+
+export interface AiInsightListResponse {
+  status: "HEALTHY";
+  insight_count: number;
+  insights: AiInsightRecord[];
+  safety: EvidenceBriefingResponse["safety"];
+}
+
+export interface AiInsightAppendResponse {
+  status: "CREATED" | "EXISTING";
+  created: boolean;
+  insight: AiInsightRecord;
+  safety: EvidenceBriefingResponse["safety"];
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -328,6 +356,7 @@ export interface DashboardData {
   outcomes: OutcomeExplorerResponse;
   annotations: AnnotationListResponse;
   aiBriefing: EvidenceBriefingResponse;
+  aiInsights: AiInsightListResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

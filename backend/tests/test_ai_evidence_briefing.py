@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from app.ai_briefing import router
 from app.ai_briefing.evidence import build_sanitized_snapshot
 from app.ai_briefing.models import BriefingGenerateRequest
 from app.ai_briefing.providers import (
@@ -225,3 +226,50 @@ def test_real_briefing_endpoint_is_offline_and_read_only():
     assert schema["post"]["responses"]["200"]["content"]["application/json"]["schema"][
         "$ref"
     ].endswith("/InsightAppendResponse")
+
+
+def test_insight_endpoints_preserve_audit_separation(monkeypatch, tmp_path):
+    stored = generate_and_store_insight(
+        BriefingGenerateRequest(idempotency_key="briefing-request-4", provider_mode="OFFLINE"),
+        insight_path=tmp_path / "insights.jsonl",
+        reports=reports(),
+        now_utc=NOW,
+    )
+    monkeypatch.setattr(router, "generate_and_store_insight", lambda request: stored)
+    monkeypatch.setattr(
+        router,
+        "list_insights",
+        lambda: {
+            "status": "HEALTHY",
+            "insight_count": 1,
+            "insights": [stored["insight"]],
+            "safety": {
+                "input_sanitized": True,
+                "credentials_included": False,
+                "annotation_text_included": False,
+                "raw_market_data_included": False,
+                "trading_action_permitted": False,
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        },
+    )
+    client = TestClient(app)
+
+    created = client.post(
+        "/ai/evidence-briefing",
+        json={"idempotency_key": "briefing-request-4", "provider_mode": "OFFLINE"},
+    )
+    listed = client.get("/ai/evidence-insights")
+
+    assert created.status_code == 200
+    assert created.json()["safety"]["network_calls_made"] == 0
+    assert created.json()["safety"]["ledger_writes_performed"] == 0
+    assert created.json()["safety"]["broker_orders_submitted"] == 0
+    assert listed.status_code == 200
+    assert listed.json()["insight_count"] == 1
+    assert listed.json()["safety"]["files_changed"] == 0
