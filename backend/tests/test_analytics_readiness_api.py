@@ -21,6 +21,12 @@ def operator_report() -> dict:
         "earliest_eligible_assessment_date": ("2027-07-14"),
         "safe_to_continue_paper_observation": True,
         "warnings": ["More evidence is required."],
+        "observation_integrity_status": "HEALTHY",
+        "observations_recorded": 12,
+        "observation_outcomes_populated": 0,
+        "observation_integrity_warnings": [
+            "No observation outcomes are populated yet.",
+        ],
         "blocking_issues": [],
         "protocol_failed_criteria": [],
         "protocol_unevaluable_criteria": ["Minimum duration not reached."],
@@ -51,6 +57,12 @@ def test_readiness_returns_protocol_progress(
     assert result["progress"]["closed_trades"]["required"] == 50
     assert result["paper_observation_allowed"] is True
     assert result["live_trading_allowed"] is False
+    assert result["observation_integrity_status"] == "HEALTHY"
+    assert result["observations_recorded"] == 12
+    assert result["observation_outcomes_populated"] == 0
+    assert result["observation_integrity_warnings"] == [
+        "No observation outcomes are populated yet.",
+    ]
 
 
 def test_readiness_uses_real_protocol_thresholds(

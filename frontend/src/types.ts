@@ -20,6 +20,10 @@ export interface ReadinessResponse {
   };
   blocking_issues: string[];
   warnings: string[];
+  observation_integrity_status: string | null;
+  observations_recorded: number;
+  observation_outcomes_populated: number;
+  observation_integrity_warnings: string[];
   failed_criteria: string[];
   unevaluable_criteria: string[];
   immediate_stop_reasons: string[];

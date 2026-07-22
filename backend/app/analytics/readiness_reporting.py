@@ -212,6 +212,19 @@ def build_readiness_report() -> dict[str, Any]:
         },
         "blocking_issues": list(operator.get("blocking_issues") or []),
         "warnings": list(operator.get("warnings") or []),
+        "observation_integrity_status": operator.get(
+            "observation_integrity_status"
+        ),
+        "observations_recorded": _safe_int(
+            operator.get("observations_recorded")
+        ),
+        "observation_outcomes_populated": _safe_int(
+            operator.get("observation_outcomes_populated")
+        ),
+        "observation_integrity_warnings": list(
+            operator.get("observation_integrity_warnings")
+            or []
+        ),
         "failed_criteria": list(operator.get("protocol_failed_criteria") or []),
         "unevaluable_criteria": list(operator.get("protocol_unevaluable_criteria") or []),
         "immediate_stop_reasons": list(operator.get("protocol_immediate_stop_reasons") or []),

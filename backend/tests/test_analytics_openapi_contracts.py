@@ -83,3 +83,17 @@ def test_operator_contract_declares_observation_integrity_fields():
     assert "observations_recorded" in properties
     assert "observation_outcomes_populated" in properties
     assert "observation_integrity_warnings" in properties
+
+
+def test_readiness_contract_declares_observation_integrity_fields():
+    schema = app.openapi()
+    readiness = schema["components"]["schemas"][
+        "AnalyticsReadinessResponse"
+    ]
+
+    properties = readiness["properties"]
+
+    assert "observation_integrity_status" in properties
+    assert "observations_recorded" in properties
+    assert "observation_outcomes_populated" in properties
+    assert "observation_integrity_warnings" in properties

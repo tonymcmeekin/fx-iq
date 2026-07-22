@@ -241,6 +241,12 @@ class AnalyticsReadinessResponse(AnalyticsSafetyResponse):
     progress: ReadinessProgressResponse
     blocking_issues: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    observation_integrity_status: str | None = None
+    observations_recorded: int = Field(default=0, ge=0)
+    observation_outcomes_populated: int = Field(default=0, ge=0)
+    observation_integrity_warnings: list[str] = Field(
+        default_factory=list
+    )
     failed_criteria: list[str] = Field(default_factory=list)
     unevaluable_criteria: list[str] = Field(default_factory=list)
     immediate_stop_reasons: list[str] = Field(default_factory=list)
