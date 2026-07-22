@@ -50,10 +50,22 @@ git rev-parse --short HEAD
 git status --short
 ```
 
-Run the read-only operational report:
+Run the non-trading audited operational report:
 
 ```bash
 python scripts/run_prospective_paper_daily_operation.py --report-only
+```
+
+This mode does not collect OANDA data, execute a paper session, alter trading
+state, or create a session receipt. It does acquire the operation lock and
+append one `REPORT_ONLY` record to
+`paper_ledger/daily_operations.jsonl`. If a strictly no-write inspection is
+required, run these reports directly instead:
+
+```bash
+python scripts/check_prospective_paper_health.py
+python scripts/report_prospective_paper_operator_status.py
+python scripts/report_passive_observations.py
 ```
 
 Proceed only when the report says:

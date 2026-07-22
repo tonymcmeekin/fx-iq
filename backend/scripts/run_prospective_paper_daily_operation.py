@@ -335,7 +335,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--report-only",
         action="store_true",
-        help=("Skip the paper session and run only the health and operator reports."),
+        help=(
+            "Skip the paper session, run only the health and "
+            "operator reports, and append one audit-journal record."
+        ),
     )
 
     parser.add_argument(
@@ -509,7 +512,7 @@ def run_daily_operation(
         raise DailyOperationError(
             "A paper session requires explicit "
             "--use-oanda-practice permission. Use --report-only "
-            "for a read-only operation."
+            "for a non-trading audited operation."
         )
 
     if report_only and recover_incomplete_session:
