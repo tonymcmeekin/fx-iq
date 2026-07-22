@@ -374,3 +374,21 @@ class PortfolioIntelligenceResponse(AnalyticsSafetyResponse):
         default_factory=list
     )
     broker_orders_sent: int = Field(default=0, ge=0)
+
+
+class OutcomeExplorerResponse(AnalyticsSafetyResponse):
+    """Sparse-safe outcome intelligence from verified observations."""
+
+    schema_version: int = 1
+    status: str
+    generated_at_utc: str
+    minimum_overall_sample: int = Field(ge=2)
+    minimum_group_sample: int = Field(ge=2)
+    outcome_count: int = Field(default=0, ge=0)
+    available_group_count: int = Field(default=0, ge=0)
+    group_count: int = Field(default=0, ge=0)
+    overall: dict[str, Any]
+    distribution: dict[str, Any]
+    groups: list[dict[str, Any]] = Field(default_factory=list)
+    integrity_status: str
+    integrity_warnings: list[str] = Field(default_factory=list)

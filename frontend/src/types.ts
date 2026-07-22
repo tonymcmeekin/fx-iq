@@ -169,6 +169,41 @@ export interface PortfolioIntelligenceResponse {
   protocol_live_trading_permitted: false;
 }
 
+export interface OutcomeMetrics {
+  sample_size: number;
+  minimum_sample_size: number;
+  status: "AVAILABLE" | "INSUFFICIENT_DATA";
+  mean_return_percent: number | null;
+  median_return_percent: number | null;
+  win_rate_percent: number | null;
+  profit_factor: number | null;
+  mean_favourable_excursion_percent: number | null;
+  mean_adverse_excursion_percent: number | null;
+  mean_candles_held: number | null;
+}
+
+export interface OutcomeGroup extends OutcomeMetrics {
+  dimension: string;
+  value: string;
+}
+
+export interface OutcomeExplorerResponse {
+  status: "AVAILABLE" | "INSUFFICIENT_DATA";
+  generated_at_utc: string;
+  minimum_overall_sample: number;
+  minimum_group_sample: number;
+  outcome_count: number;
+  available_group_count: number;
+  group_count: number;
+  overall: OutcomeMetrics;
+  distribution: Record<string, unknown>;
+  groups: OutcomeGroup[];
+  integrity_status: string;
+  integrity_warnings: string[];
+  safe_for_live_trading: false;
+  protocol_live_trading_permitted: false;
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -217,6 +252,7 @@ export interface DashboardData {
   cockpit: EvidenceCockpitResponse;
   alerts: OperatorAlertReportResponse;
   portfolio: PortfolioIntelligenceResponse;
+  outcomes: OutcomeExplorerResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

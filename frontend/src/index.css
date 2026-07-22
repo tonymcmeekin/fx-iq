@@ -357,6 +357,98 @@ button {
   color: #bcd3ed;
 }
 
+.outcome-explorer {
+  margin-top: 1rem;
+  border-color: #465c74;
+}
+
+.outcome-explorer h2 {
+  margin-top: 0.35rem;
+}
+
+.outcome-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.outcome-metrics > div {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.outcome-metrics span,
+.outcome-metrics small {
+  display: block;
+  color: #91a1b5;
+}
+
+.outcome-metrics span {
+  margin-bottom: 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.outcome-metrics strong {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.outcome-metrics small {
+  margin-top: 0.4rem;
+}
+
+.outcome-notice {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #7a6131;
+  border-radius: 0.75rem;
+  color: #ffe1a8;
+  background: #3d3018;
+}
+
+.outcome-groups {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.75rem;
+  color: #bcd3ed;
+  background: rgb(9 17 27 / 55%);
+}
+
+.outcome-groups summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.outcome-groups > div {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.outcome-groups span,
+.outcome-groups strong {
+  display: block;
+}
+
+.outcome-groups span {
+  color: #91a1b5;
+}
+
+.outcome-groups strong {
+  color: #d8e4f2;
+  font-size: 0.78rem;
+}
+
 .alert-item__heading {
   justify-content: space-between;
 }
@@ -566,6 +658,10 @@ footer {
   .portfolio-metrics {
     grid-template-columns: 1fr 1fr;
   }
+
+  .outcome-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 620px) {
@@ -590,11 +686,13 @@ footer {
   }
 
   .portfolio-metrics,
-  .exposure-columns {
+  .exposure-columns,
+  .outcome-metrics {
     grid-template-columns: 1fr;
   }
 
-  .correlation-notice {
+  .correlation-notice,
+  .outcome-notice {
     flex-direction: column;
   }
 }

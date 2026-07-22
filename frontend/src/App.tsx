@@ -280,6 +280,7 @@ function App() {
     cockpit,
     alerts,
     portfolio,
+    outcomes,
     decision,
     scanner,
   } = state.data;
@@ -636,6 +637,90 @@ function App() {
         <p className="evidence-safety">
           Exposure is descriptive paper-risk context. It does not resize,
           approve, or execute any position.
+        </p>
+      </section>
+
+      <section className="panel outcome-explorer">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Verified learning evidence</span>
+            <h2>Outcome explorer</h2>
+          </div>
+          <span
+            className={
+              outcomes.status === "AVAILABLE"
+                ? "badge badge--positive"
+                : "badge badge--warning"
+            }
+          >
+            {formatLabel(outcomes.status)}
+          </span>
+        </div>
+
+        <div className="outcome-metrics">
+          <div>
+            <span>Verified outcomes</span>
+            <strong>
+              {outcomes.outcome_count} / {outcomes.minimum_overall_sample}
+            </strong>
+            <small>Required for overall statistics</small>
+          </div>
+          <div>
+            <span>Eligible groups</span>
+            <strong>
+              {outcomes.available_group_count} / {outcomes.group_count}
+            </strong>
+            <small>{outcomes.minimum_group_sample} outcomes per group</small>
+          </div>
+          <div>
+            <span>Mean return</span>
+            <strong>
+              {outcomes.overall.mean_return_percent === null
+                ? "Withheld"
+                : `${outcomes.overall.mean_return_percent.toFixed(2)}%`}
+            </strong>
+            <small>Verified paper outcomes only</small>
+          </div>
+          <div>
+            <span>Win rate</span>
+            <strong>
+              {outcomes.overall.win_rate_percent === null
+                ? "Withheld"
+                : `${outcomes.overall.win_rate_percent.toFixed(2)}%`}
+            </strong>
+            <small>No sparse-sample ranking</small>
+          </div>
+        </div>
+
+        {outcomes.status === "INSUFFICIENT_DATA" && (
+          <div className="outcome-notice">
+            <strong>Performance statistics intentionally withheld</strong>
+            <span>
+              Closed paper outcomes will populate return, excursion, holding
+              period, regime, setup, and exit-reason analysis. No estimate is
+              produced before the declared sample thresholds are met.
+            </span>
+          </div>
+        )}
+
+        {outcomes.groups.length > 0 && (
+          <details className="outcome-groups">
+            <summary>Review grouped sample counts</summary>
+            <div>
+              {outcomes.groups.map((group) => (
+                <span key={`${group.dimension}:${group.value}`}>
+                  <strong>{formatLabel(group.dimension)}</strong>
+                  {group.value} · {group.sample_size} samples ·{" "}
+                  {formatLabel(group.status)}
+                </span>
+              ))}
+            </div>
+          </details>
+        )}
+
+        <p className="evidence-safety">
+          Outcome analysis is read-only and cannot modify the frozen strategy,
+          paper state, or broker state.
         </p>
       </section>
 

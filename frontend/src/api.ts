@@ -3,6 +3,7 @@ import type {
   DecisionEvaluationResponse,
   EvidenceCockpitResponse,
   OperatorAlertReportResponse,
+  OutcomeExplorerResponse,
   PortfolioIntelligenceResponse,
   ReadinessExplanationResponse,
   ReadinessResponse,
@@ -120,7 +121,7 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 export async function fetchDashboardData(
   scannerSource: ScannerSource = "synthetic",
 ): Promise<DashboardData> {
-  const [readiness, explanation, cockpit, alerts, portfolio, decision, scanner] =
+  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
       requestJson<ReadinessExplanationResponse>(
@@ -133,6 +134,9 @@ export async function fetchDashboardData(
       requestJson<PortfolioIntelligenceResponse>(
         "/analytics/portfolio-intelligence",
       ),
+      requestJson<OutcomeExplorerResponse>(
+        "/analytics/outcome-explorer",
+      ),
       fetchDecisionEvaluation(),
       fetchScannerOpportunities(scannerSource),
     ]);
@@ -143,6 +147,7 @@ export async function fetchDashboardData(
     cockpit,
     alerts,
     portfolio,
+    outcomes,
     decision,
     scanner,
   };

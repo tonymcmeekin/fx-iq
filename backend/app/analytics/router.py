@@ -22,6 +22,7 @@ from app.analytics.models import (
     EvidenceCockpitResponse,
     OperatorAlertReportResponse,
     OperatorStatusResponse,
+    OutcomeExplorerResponse,
     PortfolioIntelligenceResponse,
     ProspectivePaperHealthResponse,
     StrategyAttributionResponse,
@@ -35,6 +36,10 @@ from app.analytics.operator_status_reporting import (
 )
 from app.analytics.operator_status_reporting import (
     perform_report as perform_operator_status_report,
+)
+from app.analytics.outcome_explorer_reporting import (
+    OutcomeExplorerError,
+    build_outcome_explorer_report,
 )
 from app.analytics.overview_reporting import (
     AnalyticsOverviewError,
@@ -102,6 +107,31 @@ def get_portfolio_intelligence() -> dict[str, Any]:
     try:
         return build_portfolio_intelligence_report()
     except PortfolioIntelligenceError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
+
+
+@router.get(
+    "/outcome-explorer",
+    response_model=OutcomeExplorerResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def get_outcome_explorer() -> dict[str, Any]:
+    """Return sparse-safe outcome analysis from verified observations."""
+    try:
+        return build_outcome_explorer_report()
+    except OutcomeExplorerError as error:
         raise HTTPException(
             status_code=409,
             detail={
