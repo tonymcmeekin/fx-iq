@@ -195,6 +195,7 @@ export async function createOperatorAnnotation(input: {
   subject_id: string;
   category: AnnotationCategory;
   note: string;
+  subject_type?: "ALERT" | "AI_INSIGHT";
 }): Promise<AnnotationAppendResponse> {
   return requestJson<AnnotationAppendResponse>(
     "/operator-review/annotations",
@@ -205,7 +206,7 @@ export async function createOperatorAnnotation(input: {
       },
       body: JSON.stringify({
         ...input,
-        subject_type: "ALERT",
+        subject_type: input.subject_type ?? "ALERT",
       }),
     },
   );

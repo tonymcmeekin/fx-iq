@@ -187,6 +187,14 @@ function App() {
   >("idle");
   const [insightError, setInsightError] = useState<string | null>(null);
   const insightRequestKey = useRef<string | null>(null);
+  const [insightReviewNote, setInsightReviewNote] = useState("");
+  const [insightReviewStatus, setInsightReviewStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [insightReviewError, setInsightReviewError] = useState<string | null>(
+    null,
+  );
+  const insightReviewKey = useRef<string | null>(null);
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -347,6 +355,57 @@ function App() {
     }
   }, []);
 
+  const submitInsightReview = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const currentData =
+        state.status === "ready" || state.status === "refreshing"
+          ? state.data
+          : null;
+      const insight = currentData?.aiInsights.insights.at(-1);
+      if (!insight || !insightReviewNote.trim()) {
+        return;
+      }
+
+      setInsightReviewStatus("saving");
+      setInsightReviewError(null);
+      insightReviewKey.current ??= crypto.randomUUID();
+      try {
+        await createOperatorAnnotation({
+          idempotency_key: insightReviewKey.current,
+          subject_type: "AI_INSIGHT",
+          subject_id: insight.insight_id,
+          category: "REVIEW",
+          note: insightReviewNote.trim(),
+        });
+        const annotations = await fetchOperatorAnnotations();
+        setState((current) => {
+          if (
+            current.status !== "ready" &&
+            current.status !== "refreshing"
+          ) {
+            return current;
+          }
+          return {
+            status: "ready",
+            data: { ...current.data, annotations },
+          };
+        });
+        insightReviewKey.current = null;
+        setInsightReviewNote("");
+        setInsightReviewStatus("saved");
+      } catch (error: unknown) {
+        setInsightReviewStatus("error");
+        setInsightReviewError(
+          error instanceof Error
+            ? error.message
+            : "The human review could not be appended.",
+        );
+      }
+    },
+    [insightReviewNote, state],
+  );
+
   if (state.status === "loading") {
     return (
       <main className="state-screen">
@@ -405,6 +464,12 @@ function App() {
       (correlation) => correlation.aligned_return_count,
     ),
   );
+  const reviewedInsightIds = new Set(
+    annotations.annotations
+      .filter((annotation) => annotation.subject_type === "AI_INSIGHT")
+      .map((annotation) => annotation.subject_id),
+  );
+  const latestInsight = aiInsights.insights.at(-1);
 
   return (
     <main className="dashboard">
@@ -694,22 +759,73 @@ function App() {
                 <article key={insight.insight_id}>
                   <div>
                     <strong>Briefing #{insight.sequence}</strong>
-                    <code>{insight.record_hash.slice(0, 10)}</code>
+                    <span
+                      className={
+                        reviewedInsightIds.has(insight.insight_id)
+                          ? "badge badge--positive"
+                          : "badge badge--warning"
+                      }
+                    >
+                      {reviewedInsightIds.has(insight.insight_id)
+                        ? "Human reviewed"
+                        : "Review required"}
+                    </span>
                   </div>
                   <p>{insight.briefing.headline}</p>
                   <small>
+                    Hash {insight.record_hash.slice(0, 10)} ·{" "}
                     {formatLabel(insight.provider_mode)} · {insight.model} ·{" "}
                     {new Date(insight.created_at_utc).toLocaleString()}
                   </small>
                 </article>
               ))
           )}
+
+          {latestInsight && !reviewedInsightIds.has(latestInsight.insight_id) && (
+            <form className="ai-review-form" onSubmit={submitInsightReview}>
+              <label>
+                Human review note for briefing #{latestInsight.sequence}
+                <textarea
+                  maxLength={2000}
+                  placeholder="Record your assessment before treating any follow-up question as accepted."
+                  value={insightReviewNote}
+                  onChange={(event) => {
+                    setInsightReviewNote(event.target.value);
+                    setInsightReviewStatus("idle");
+                  }}
+                />
+              </label>
+              <button
+                className="button button--compact"
+                type="submit"
+                disabled={
+                  !insightReviewNote.trim() || insightReviewStatus === "saving"
+                }
+              >
+                {insightReviewStatus === "saving"
+                  ? "Appending…"
+                  : "Append human review"}
+              </button>
+              {insightReviewStatus === "error" && insightReviewError && (
+                <p className="annotation-message annotation-message--error">
+                  {insightReviewError}
+                </p>
+              )}
+            </form>
+          )}
+
+          {insightReviewStatus === "saved" && (
+            <p className="annotation-message annotation-message--success">
+              Human review appended and linked to the insight hash.
+            </p>
+          )}
         </div>
 
         <p className="evidence-safety">
           Input sanitized · no credentials, annotation text, or raw candles.
           This analyst cannot change strategy, authorize live trading, or submit
-          broker orders.
+          broker orders. Follow-up questions remain unaccepted until a human
+          review is appended.
         </p>
       </section>
 

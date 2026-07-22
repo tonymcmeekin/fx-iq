@@ -23,6 +23,9 @@ DEFAULT_OBSERVATION_PATH = (
 DEFAULT_OUTCOME_PATH = (
     BACKEND_DIRECTORY / "paper_ledger" / "intelligence_outcomes.jsonl"
 )
+DEFAULT_AI_INSIGHT_PATH = (
+    BACKEND_DIRECTORY / "paper_ledger" / "ai_evidence_insights.jsonl"
+)
 
 
 class OperatorReviewError(RuntimeError):
@@ -36,6 +39,7 @@ def _subject_session_date(
     alerts: dict[str, Any],
     observation_path: Path,
     outcome_path: Path,
+    insight_path: Path,
 ) -> date | None:
     if request.subject_type == "ALERT":
         match = next(
@@ -69,6 +73,21 @@ def _subject_session_date(
         if match is None:
             raise OperatorReviewError("Observation subject is not verified.")
         return match.session_date
+    if request.subject_type == "AI_INSIGHT":
+        # Imported lazily to keep service initialization acyclic.
+        from app.ai_briefing.store import read_insights
+
+        match = next(
+            (
+                insight
+                for insight in read_insights(insight_path)
+                if insight.insight_id == request.subject_id
+            ),
+            None,
+        )
+        if match is None:
+            raise OperatorReviewError("AI insight subject is not verified.")
+        return match.created_at_utc.date()
     match = next(
         (
             outcome
@@ -113,6 +132,7 @@ def create_operator_annotation(
     annotation_path: Path = DEFAULT_ANNOTATION_PATH,
     observation_path: Path = DEFAULT_OBSERVATION_PATH,
     outcome_path: Path = DEFAULT_OUTCOME_PATH,
+    insight_path: Path = DEFAULT_AI_INSIGHT_PATH,
     cockpit_report: dict[str, Any] | None = None,
     alert_report: dict[str, Any] | None = None,
     now_utc: datetime | None = None,
@@ -129,6 +149,7 @@ def create_operator_annotation(
             alerts=alerts,
             observation_path=observation_path,
             outcome_path=outcome_path,
+            insight_path=insight_path,
         )
         resolved_now = now_utc or datetime.now(UTC)
         annotation, created = append_annotation(

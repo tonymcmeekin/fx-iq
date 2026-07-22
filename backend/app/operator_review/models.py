@@ -18,7 +18,7 @@ class AnnotationRequest(ReviewModel):
     """Explicit request to append one evidence-linked operator note."""
 
     idempotency_key: str = Field(min_length=8, max_length=128)
-    subject_type: Literal["ALERT", "SESSION", "OBSERVATION", "OUTCOME"]
+    subject_type: Literal["ALERT", "SESSION", "OBSERVATION", "OUTCOME", "AI_INSIGHT"]
     subject_id: str = Field(min_length=1, max_length=256)
     category: Literal["CONTEXT", "REVIEW", "FOLLOW_UP"]
     note: str = Field(min_length=1, max_length=2000)
@@ -39,7 +39,7 @@ class OperatorAnnotation(ReviewModel):
     annotation_id: str = Field(min_length=64, max_length=64)
     idempotency_key: str = Field(min_length=8, max_length=128)
     created_at_utc: datetime
-    subject_type: Literal["ALERT", "SESSION", "OBSERVATION", "OUTCOME"]
+    subject_type: Literal["ALERT", "SESSION", "OBSERVATION", "OUTCOME", "AI_INSIGHT"]
     subject_id: str
     subject_session_date: date | None = None
     category: Literal["CONTEXT", "REVIEW", "FOLLOW_UP"]

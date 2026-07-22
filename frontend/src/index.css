@@ -332,6 +332,39 @@ button {
   color: #91a1b5;
 }
 
+.ai-review-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #293c53;
+}
+
+.ai-review-form label {
+  display: grid;
+  gap: 0.45rem;
+  color: #91a1b5;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.ai-review-form textarea {
+  min-height: 5.5rem;
+  padding: 0.75rem;
+  border: 1px solid #38546f;
+  border-radius: 0.65rem;
+  color: #edf3fb;
+  background: #111f2e;
+  font: inherit;
+  resize: vertical;
+}
+
+.ai-review-form .button {
+  justify-self: start;
+}
+
 .operator-alerts h2 {
   margin-top: 0.35rem;
 }

@@ -210,7 +210,12 @@ export interface OperatorAnnotation {
   sequence: number;
   annotation_id: string;
   created_at_utc: string;
-  subject_type: "ALERT" | "SESSION" | "OBSERVATION" | "OUTCOME";
+  subject_type:
+    | "ALERT"
+    | "SESSION"
+    | "OBSERVATION"
+    | "OUTCOME"
+    | "AI_INSIGHT";
   subject_id: string;
   subject_session_date: string | null;
   category: AnnotationCategory;

@@ -22,6 +22,8 @@ from app.ai_briefing.service import (
 )
 from app.ai_briefing.store import InsightStoreError, read_insights
 from app.main import app
+from app.operator_review.models import AnnotationRequest
+from app.operator_review.service import create_operator_annotation
 
 NOW = datetime(2026, 7, 22, 12, tzinfo=UTC)
 
@@ -273,3 +275,37 @@ def test_insight_endpoints_preserve_audit_separation(monkeypatch, tmp_path):
     assert listed.status_code == 200
     assert listed.json()["insight_count"] == 1
     assert listed.json()["safety"]["files_changed"] == 0
+
+
+def test_human_annotation_links_to_verified_ai_insight(tmp_path):
+    insight_path = tmp_path / "insights.jsonl"
+    generated = generate_and_store_insight(
+        BriefingGenerateRequest(idempotency_key="briefing-request-5", provider_mode="OFFLINE"),
+        insight_path=insight_path,
+        reports=reports(),
+        now_utc=NOW,
+    )
+
+    reviewed = create_operator_annotation(
+        AnnotationRequest(
+            idempotency_key="insight-review-1",
+            subject_type="AI_INSIGHT",
+            subject_id=generated["insight"]["insight_id"],
+            category="REVIEW",
+            note="Reviewed; continue collecting evidence without changing policy.",
+        ),
+        annotation_path=tmp_path / "annotations.jsonl",
+        insight_path=insight_path,
+        cockpit_report={
+            "current_software_commit": "abc1234",
+            "current_policy_fingerprint": "f" * 64,
+            "session_lineage": [],
+        },
+        alert_report={"alerts": []},
+        now_utc=NOW,
+    )
+
+    assert reviewed["annotation"]["subject_type"] == "AI_INSIGHT"
+    assert reviewed["annotation"]["subject_id"] == generated["insight"]["insight_id"]
+    assert reviewed["annotation"]["subject_session_date"] == "2026-07-22"
+    assert reviewed["broker_orders_submitted"] == 0
