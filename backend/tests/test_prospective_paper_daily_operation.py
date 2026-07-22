@@ -18,6 +18,9 @@ def operator_report():
     return {
         "status": "OBSERVING",
         "runtime_health": "HEALTHY",
+        "observation_integrity_status": "HEALTHY",
+        "observations_recorded": 6,
+        "observation_outcomes_populated": 0,
         "evidence_gate_status": "NOT_READY",
         "completed_sessions": 1,
         "positions_closed": 0,
@@ -57,6 +60,7 @@ def test_report_only_operation(monkeypatch):
     assert result["session_executed"] is False
     assert result["safe_for_live_trading"] is False
     assert result["protocol_live_trading_permitted"] is False
+    assert result["observation_integrity_status"] == "HEALTHY"
 
 
 def test_session_requires_explicit_practice_permission():
@@ -314,6 +318,19 @@ def test_operator_must_explicitly_prohibit_live_trading():
     with pytest.raises(
         daily.DailyOperationError,
         match="prohibit live trading",
+    ):
+        daily.require_safe_operator_state(
+            report,
+        )
+
+
+def test_operator_requires_healthy_observation_integrity():
+    report = operator_report()
+    report["observation_integrity_status"] = "INTEGRITY_ERROR"
+
+    with pytest.raises(
+        daily.DailyOperationError,
+        match="passive-observation integrity",
     ):
         daily.require_safe_operator_state(
             report,

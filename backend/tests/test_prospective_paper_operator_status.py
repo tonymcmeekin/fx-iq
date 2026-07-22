@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from scripts import (
     report_prospective_paper_operator_status as operator_status,
 )
@@ -10,6 +12,27 @@ def healthy_report() -> dict:
         "status": "HEALTHY",
         "broker_orders_sent": 0,
     }
+
+
+def healthy_observation_report() -> dict:
+    return {
+        "status": "HEALTHY",
+        "observation_count": 6,
+        "outcomes_populated": 0,
+        "warnings": [
+            "No observation outcomes are populated yet.",
+        ],
+        "broker_orders_sent": 0,
+    }
+
+
+@pytest.fixture(autouse=True)
+def stub_observation_report(monkeypatch):
+    monkeypatch.setattr(
+        operator_status,
+        "build_observation_report",
+        lambda **_kwargs: healthy_observation_report(),
+    )
 
 
 def performance_report(
@@ -92,6 +115,9 @@ def test_healthy_insufficient_data_is_observing():
     assert any("Only 1 completed" in warning for warning in result["warnings"])
 
     assert any("No closed" in warning for warning in result["warnings"])
+
+    assert result["observation_integrity_status"] == "HEALTHY"
+    assert result["observations_recorded"] == 6
 
 
 def test_unhealthy_runtime_blocks_observation():
@@ -342,3 +368,43 @@ def test_operator_protocol_gate_remains_separate_from_observation_gate():
     assert result["protocol_sample_size_gate"] is False
     assert result["protocol_test_passed"] is False
     assert result["safe_for_live_trading"] is False
+
+
+def test_observation_integrity_failure_blocks_observation():
+    observations = healthy_observation_report()
+    observations["status"] = "INTEGRITY_ERROR"
+
+    result = operator_status.build_operator_status(
+        health_report=healthy_report(),
+        performance_report=performance_report(),
+        rolling_analytics_report=rolling_report(),
+        observation_report=observations,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["observation_integrity_status"] == (
+        "INTEGRITY_ERROR"
+    )
+    assert result[
+        "safe_to_continue_paper_observation"
+    ] is False
+    assert any(
+        "Passive-observation integrity"
+        in issue
+        for issue in result["blocking_issues"]
+    )
+
+
+def test_observation_broker_orders_block_observation():
+    observations = healthy_observation_report()
+    observations["broker_orders_sent"] = 1
+
+    result = operator_status.build_operator_status(
+        health_report=healthy_report(),
+        performance_report=performance_report(),
+        rolling_analytics_report=rolling_report(),
+        observation_report=observations,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["broker_orders_sent"] == 1

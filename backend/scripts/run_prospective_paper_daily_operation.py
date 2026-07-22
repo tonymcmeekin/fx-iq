@@ -460,6 +460,11 @@ def require_safe_operator_state(
     if report.get("runtime_health") != "HEALTHY":
         raise DailyOperationError("Final operator report is not runtime healthy.")
 
+    if report.get("observation_integrity_status") != "HEALTHY":
+        raise DailyOperationError(
+            "Final passive-observation integrity is not healthy."
+        )
+
 
 def observation_reconciliation_pending(
     session_date: str,
@@ -629,6 +634,15 @@ def run_daily_operation(
         "preflight_health": preflight_health.get("status"),
         "postflight_health": postflight_health.get("status"),
         "operator_status": operator_report.get("status"),
+        "observation_integrity_status": operator_report.get(
+            "observation_integrity_status"
+        ),
+        "observations_recorded": operator_report.get(
+            "observations_recorded"
+        ),
+        "observation_outcomes_populated": operator_report.get(
+            "observation_outcomes_populated"
+        ),
         "evidence_gate_status": operator_report.get("evidence_gate_status"),
         "completed_sessions": operator_report.get("completed_sessions"),
         "positions_closed": operator_report.get("positions_closed"),

@@ -12,6 +12,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
         str(BACKEND_DIRECTORY),
     )
 
+from app.intelligence.reporting import build_observation_report  # noqa: E402
 from scripts.check_prospective_paper_health import (  # noqa: E402
     perform_health_check,
 )
@@ -39,6 +40,7 @@ def build_operator_status(
     health_report: dict[str, Any] | None = None,
     performance_report: dict[str, Any] | None = None,
     rolling_analytics_report: dict[str, Any] | None = None,
+    observation_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     resolved_health = health_report if health_report is not None else perform_health_check()
 
@@ -60,11 +62,31 @@ def build_operator_status(
         )
     )
 
+    resolved_observations = (
+        observation_report
+        if observation_report is not None
+        else build_observation_report(
+            ledger_path=ledger_path,
+            observation_path=(
+                ledger_path.parent
+                / "intelligence_observations.jsonl"
+            ),
+            outcome_path=(
+                ledger_path.parent
+                / "intelligence_outcomes.jsonl"
+            ),
+        )
+    )
+
     runtime_health = resolved_health.get("status")
 
     performance_status = resolved_performance.get("status")
 
     rolling_analytics_status = resolved_rolling.get("status")
+
+    observation_integrity_status = resolved_observations.get(
+        "status"
+    )
 
     blocking_issues: list[str] = []
     warnings: list[str] = []
@@ -90,14 +112,27 @@ def build_operator_status(
         )
     )
 
+    observation_broker_orders = int(
+        resolved_observations.get(
+            "broker_orders_sent",
+            0,
+        )
+    )
+
     broker_orders_sent = max(
         health_broker_orders,
         performance_broker_orders,
         rolling_broker_orders,
+        observation_broker_orders,
     )
 
     if runtime_health != "HEALTHY":
         blocking_issues.append("Prospective paper runtime health is not HEALTHY.")
+
+    if observation_integrity_status != "HEALTHY":
+        blocking_issues.append(
+            "Passive-observation integrity is not HEALTHY."
+        )
 
     if broker_orders_sent != 0:
         blocking_issues.append("Broker-order activity was recorded.")
@@ -248,6 +283,27 @@ def build_operator_status(
         "runtime_health": runtime_health,
         "performance_status": (performance_status),
         "rolling_analytics_status": (rolling_analytics_status),
+        "observation_integrity_status": (
+            observation_integrity_status
+        ),
+        "observations_recorded": int(
+            resolved_observations.get(
+                "observation_count",
+                0,
+            )
+        ),
+        "observation_outcomes_populated": int(
+            resolved_observations.get(
+                "outcomes_populated",
+                0,
+            )
+        ),
+        "observation_integrity_warnings": list(
+            resolved_observations.get(
+                "warnings",
+                [],
+            )
+        ),
         "rolling_evidence_ready": (rolling_evidence_ready),
         "safe_to_continue_paper_observation": (safe_to_continue),
         "safe_for_live_trading": False,

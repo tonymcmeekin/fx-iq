@@ -61,6 +61,7 @@ Proceed only when the report says:
 - `preflight_health`: `HEALTHY`
 - `postflight_health`: `HEALTHY`
 - `broker_orders_sent`: `0`
+- `observation_integrity_status`: `HEALTHY`
 - `safe_to_continue_paper_observation`: `true`
 - `safe_for_live_trading`: `false`
 
@@ -95,8 +96,10 @@ python scripts/report_passive_observations.py
 ```
 
 The observation report must be `HEALTHY`, with no duplicate IDs, orphaned
-session dates, or reconciliation mismatches. Outcomes may remain unpopulated
-until a paper position closes.
+session dates, reconciliation mismatches, missing close-event outcomes, or
+outcomes referencing unknown close events. Outcomes may remain unpopulated
+until a paper position closes. The combined operator report enforces the same
+integrity result and blocks further paper observation if it is unhealthy.
 
 ## Transactional observation behavior
 
