@@ -12,7 +12,7 @@ from app.safety.broker_preflight import (
     build_broker_backed_preflight,
 )
 
-ACCOUNT_ID = "101-004-39785237-001"
+ACCOUNT_ID = "999-999-00000000-999"
 
 
 def snapshot(
