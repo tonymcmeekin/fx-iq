@@ -21,7 +21,10 @@ from app.analytics.evidence_cockpit_reporting import build_evidence_cockpit
 from app.analytics.operator_alert_reporting import build_operator_alert_report
 from app.analytics.outcome_explorer_reporting import build_outcome_explorer_report
 from app.analytics.portfolio_intelligence_reporting import build_portfolio_intelligence_report
-from app.operator_review.service import list_operator_annotations
+from app.operator_review.service import (
+    DEFAULT_ANNOTATION_PATH,
+    list_operator_annotations,
+)
 
 BACKEND_DIRECTORY = Path(__file__).resolve().parents[2]
 DEFAULT_INSIGHT_PATH = BACKEND_DIRECTORY / "paper_ledger" / "ai_evidence_insights.jsonl"
@@ -175,5 +178,50 @@ def list_insights(*, insight_path: Path = DEFAULT_INSIGHT_PATH) -> dict[str, Any
         "status": "HEALTHY",
         "insight_count": len(insights),
         "insights": [insight.model_dump(mode="json") for insight in insights],
+        "safety": BriefingSafety().model_dump(mode="json"),
+    }
+
+
+def build_ai_governance_report(
+    *,
+    insight_path: Path = DEFAULT_INSIGHT_PATH,
+    annotation_path: Path = DEFAULT_ANNOTATION_PATH,
+) -> dict[str, Any]:
+    """Verify AI insights against immutable human-review annotations."""
+    try:
+        insights = read_insights(insight_path)
+        annotations = list_operator_annotations(annotation_path=annotation_path)["annotations"]
+    except (OSError, RuntimeError, ValueError) as error:
+        raise EvidenceBriefingError(str(error)) from error
+
+    insight_ids = {insight.insight_id for insight in insights}
+    review_subject_ids = {
+        str(annotation["subject_id"])
+        for annotation in annotations
+        if annotation["subject_type"] == "AI_INSIGHT"
+        and annotation["category"] in {"REVIEW", "FOLLOW_UP"}
+    }
+    orphaned = sorted(review_subject_ids - insight_ids)
+    reviewed = insight_ids & review_subject_ids
+    unreviewed = sorted(insight_ids - reviewed)
+    status = "INTEGRITY_ERROR" if orphaned else "REVIEW_REQUIRED" if unreviewed else "HEALTHY"
+    return {
+        "schema_version": 1,
+        "status": status,
+        "insight_count": len(insights),
+        "reviewed_insight_count": len(reviewed),
+        "unreviewed_insight_count": len(unreviewed),
+        "hosted_insight_count": sum(insight.provider_mode == "OPENAI" for insight in insights),
+        "orphaned_review_count": len(orphaned),
+        "unreviewed_insight_ids": unreviewed,
+        "orphaned_review_subject_ids": orphaned,
+        "model_fingerprints": sorted(
+            {f"{insight.provider_mode}:{insight.model}" for insight in insights}
+        ),
+        "prompt_fingerprints": sorted({insight.prompt_fingerprint for insight in insights}),
+        "review_rule": (
+            "A saved insight is reviewed only when a verified REVIEW or "
+            "FOLLOW_UP annotation references its exact insight ID."
+        ),
         "safety": BriefingSafety().model_dump(mode="json"),
     }

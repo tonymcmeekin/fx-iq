@@ -310,6 +310,21 @@ export interface AiInsightAppendResponse {
   safety: EvidenceBriefingResponse["safety"];
 }
 
+export interface AiGovernanceResponse {
+  status: "HEALTHY" | "REVIEW_REQUIRED" | "INTEGRITY_ERROR";
+  insight_count: number;
+  reviewed_insight_count: number;
+  unreviewed_insight_count: number;
+  hosted_insight_count: number;
+  orphaned_review_count: number;
+  unreviewed_insight_ids: string[];
+  orphaned_review_subject_ids: string[];
+  model_fingerprints: string[];
+  prompt_fingerprints: string[];
+  review_rule: string;
+  safety: EvidenceBriefingResponse["safety"];
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -362,6 +377,7 @@ export interface DashboardData {
   annotations: AnnotationListResponse;
   aiBriefing: EvidenceBriefingResponse;
   aiInsights: AiInsightListResponse;
+  aiGovernance: AiGovernanceResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }

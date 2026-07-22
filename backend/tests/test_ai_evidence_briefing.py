@@ -17,6 +17,7 @@ from app.ai_briefing.providers import (
 )
 from app.ai_briefing.service import (
     EvidenceBriefingError,
+    build_ai_governance_report,
     build_evidence_briefing,
     generate_and_store_insight,
 )
@@ -309,3 +310,45 @@ def test_human_annotation_links_to_verified_ai_insight(tmp_path):
     assert reviewed["annotation"]["subject_id"] == generated["insight"]["insight_id"]
     assert reviewed["annotation"]["subject_session_date"] == "2026-07-22"
     assert reviewed["broker_orders_submitted"] == 0
+
+    governance = build_ai_governance_report(
+        insight_path=insight_path,
+        annotation_path=tmp_path / "annotations.jsonl",
+    )
+    assert governance["status"] == "HEALTHY"
+    assert governance["reviewed_insight_count"] == 1
+    assert governance["unreviewed_insight_count"] == 0
+    assert governance["hosted_insight_count"] == 0
+    assert governance["safety"]["broker_orders_submitted"] == 0
+
+
+def test_governance_requires_review_for_saved_insight(tmp_path):
+    insight_path = tmp_path / "insights.jsonl"
+    generated = generate_and_store_insight(
+        BriefingGenerateRequest(idempotency_key="briefing-request-6", provider_mode="OFFLINE"),
+        insight_path=insight_path,
+        reports=reports(),
+        now_utc=NOW,
+    )
+
+    governance = build_ai_governance_report(
+        insight_path=insight_path,
+        annotation_path=tmp_path / "annotations.jsonl",
+    )
+
+    assert governance["status"] == "REVIEW_REQUIRED"
+    assert governance["unreviewed_insight_ids"] == [generated["insight"]["insight_id"]]
+    assert governance["reviewed_insight_count"] == 0
+    assert governance["orphaned_review_count"] == 0
+
+
+def test_empty_governance_is_healthy_and_read_only(tmp_path):
+    governance = build_ai_governance_report(
+        insight_path=tmp_path / "insights.jsonl",
+        annotation_path=tmp_path / "annotations.jsonl",
+    )
+
+    assert governance["status"] == "HEALTHY"
+    assert governance["insight_count"] == 0
+    assert governance["safety"]["network_calls_made"] == 0
+    assert governance["safety"]["files_changed"] == 0

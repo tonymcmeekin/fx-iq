@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createOperatorAnnotation,
+  fetchAiGovernance,
   fetchAiInsights,
   fetchDashboardData,
   fetchOperatorAnnotations,
@@ -330,7 +331,10 @@ function App() {
 
     try {
       await saveOfflineAiInsight(insightRequestKey.current);
-      const aiInsights = await fetchAiInsights();
+      const [aiInsights, aiGovernance] = await Promise.all([
+        fetchAiInsights(),
+        fetchAiGovernance(),
+      ]);
       setState((current) => {
         if (
           current.status !== "ready" &&
@@ -340,7 +344,7 @@ function App() {
         }
         return {
           status: "ready",
-          data: { ...current.data, aiInsights },
+          data: { ...current.data, aiInsights, aiGovernance },
         };
       });
       insightRequestKey.current = null;
@@ -378,7 +382,10 @@ function App() {
           category: "REVIEW",
           note: insightReviewNote.trim(),
         });
-        const annotations = await fetchOperatorAnnotations();
+        const [annotations, aiGovernance] = await Promise.all([
+          fetchOperatorAnnotations(),
+          fetchAiGovernance(),
+        ]);
         setState((current) => {
           if (
             current.status !== "ready" &&
@@ -388,7 +395,7 @@ function App() {
           }
           return {
             status: "ready",
-            data: { ...current.data, annotations },
+            data: { ...current.data, annotations, aiGovernance },
           };
         });
         insightReviewKey.current = null;
@@ -446,6 +453,7 @@ function App() {
     annotations,
     aiBriefing,
     aiInsights,
+    aiGovernance,
     decision,
     scanner,
   } = state.data;
@@ -745,8 +753,17 @@ function App() {
         <div className="ai-history">
           <div>
             <h3>Verified insight history</h3>
-            <span className="badge badge--neutral">
-              {aiInsights.insight_count} saved
+            <span
+              className={
+                aiGovernance.status === "HEALTHY"
+                  ? "badge badge--positive"
+                  : aiGovernance.status === "REVIEW_REQUIRED"
+                    ? "badge badge--warning"
+                    : "badge badge--danger"
+              }
+            >
+              {aiGovernance.reviewed_insight_count} reviewed ·{" "}
+              {aiGovernance.unreviewed_insight_count} pending
             </span>
           </div>
           {aiInsights.insights.length === 0 ? (
@@ -819,6 +836,7 @@ function App() {
               Human review appended and linked to the insight hash.
             </p>
           )}
+          <p className="ai-governance-rule">{aiGovernance.review_rule}</p>
         </div>
 
         <p className="evidence-safety">

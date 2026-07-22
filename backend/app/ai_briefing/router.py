@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.ai_briefing.models import (
+    AiGovernanceResponse,
     BriefingGenerateRequest,
     EvidenceBriefingResponse,
     InsightAppendResponse,
@@ -14,6 +15,7 @@ from app.ai_briefing.models import (
 )
 from app.ai_briefing.service import (
     EvidenceBriefingError,
+    build_ai_governance_report,
     build_evidence_briefing,
     generate_and_store_insight,
     list_insights,
@@ -58,5 +60,14 @@ def get_evidence_insights() -> dict[str, Any]:
     """Return the verified AI insight audit chain."""
     try:
         return list_insights()
+    except EvidenceBriefingError as error:
+        raise _conflict(error) from error
+
+
+@router.get("/governance", response_model=AiGovernanceResponse)
+def get_ai_governance() -> dict[str, Any]:
+    """Return verified review coverage across AI and annotation chains."""
+    try:
+        return build_ai_governance_report()
     except EvidenceBriefingError as error:
         raise _conflict(error) from error

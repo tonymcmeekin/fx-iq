@@ -119,3 +119,21 @@ class InsightListResponse(BriefingModel):
     insight_count: int = Field(ge=0)
     insights: list[InsightRecord]
     safety: BriefingSafety
+
+
+class AiGovernanceResponse(BriefingModel):
+    """Cross-chain review coverage for saved AI insights."""
+
+    schema_version: int = 1
+    status: Literal["HEALTHY", "REVIEW_REQUIRED", "INTEGRITY_ERROR"]
+    insight_count: int = Field(ge=0)
+    reviewed_insight_count: int = Field(ge=0)
+    unreviewed_insight_count: int = Field(ge=0)
+    hosted_insight_count: int = Field(ge=0)
+    orphaned_review_count: int = Field(ge=0)
+    unreviewed_insight_ids: list[str]
+    orphaned_review_subject_ids: list[str]
+    model_fingerprints: list[str]
+    prompt_fingerprints: list[str]
+    review_rule: str
+    safety: BriefingSafety

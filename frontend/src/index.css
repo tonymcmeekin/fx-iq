@@ -332,6 +332,13 @@ button {
   color: #91a1b5;
 }
 
+.ai-governance-rule {
+  margin: 1rem 0 0 !important;
+  padding-top: 0.8rem;
+  border-top: 1px solid #293c53;
+  font-size: 0.82rem;
+}
+
 .ai-review-form {
   display: grid;
   gap: 0.75rem;
