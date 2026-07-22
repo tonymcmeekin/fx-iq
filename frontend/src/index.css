@@ -250,6 +250,121 @@ button {
   gap: 0.65rem;
 }
 
+.operator-review {
+  margin-top: 1rem;
+}
+
+.operator-review h2 {
+  margin-top: 0.35rem;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.annotation-form,
+.annotation-history {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.annotation-form {
+  display: grid;
+  grid-template-columns: 1fr 0.65fr;
+  gap: 0.8rem;
+}
+
+.annotation-form label {
+  display: grid;
+  gap: 0.45rem;
+  color: #91a1b5;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.annotation-form select,
+.annotation-form textarea {
+  width: 100%;
+  border: 1px solid #38546f;
+  border-radius: 0.65rem;
+  color: #edf3fb;
+  background: #111f2e;
+  font: inherit;
+}
+
+.annotation-form select {
+  min-height: 2.7rem;
+  padding: 0 0.75rem;
+}
+
+.annotation-form textarea {
+  min-height: 6.5rem;
+  padding: 0.75rem;
+  resize: vertical;
+}
+
+.annotation-note,
+.annotation-actions,
+.annotation-message {
+  grid-column: 1 / -1;
+}
+
+.annotation-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.annotation-actions small,
+.annotation-history p,
+.annotation-history small {
+  color: #91a1b5;
+}
+
+.annotation-message {
+  margin: 0;
+  padding: 0.7rem;
+  border-radius: 0.6rem;
+}
+
+.annotation-message--success {
+  color: #b7f3d3;
+  background: #173d2d;
+}
+
+.annotation-message--error {
+  color: #ffc1c8;
+  background: #431f27;
+}
+
+.annotation-history h3 {
+  margin: 0 0 0.8rem;
+}
+
+.annotation-history article {
+  padding: 0.75rem 0;
+  border-top: 1px solid #26394f;
+}
+
+.annotation-history article > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.annotation-history article p {
+  margin: 0.65rem 0 0.4rem;
+  color: #c2cfdd;
+}
+
 .portfolio-intelligence {
   margin-top: 1rem;
   border-color: #465c74;
@@ -655,6 +770,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .review-layout {
+    grid-template-columns: 1fr;
+  }
+
   .portfolio-metrics {
     grid-template-columns: 1fr 1fr;
   }
@@ -693,6 +812,15 @@ footer {
 
   .correlation-notice,
   .outcome-notice {
+    flex-direction: column;
+  }
+
+  .annotation-form {
+    grid-template-columns: 1fr;
+  }
+
+  .annotation-actions {
+    align-items: stretch;
     flex-direction: column;
   }
 }

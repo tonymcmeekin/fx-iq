@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  createOperatorAnnotation,
   fetchDashboardData,
+  fetchOperatorAnnotations,
   fetchScannerOpportunities,
 } from "./api";
 import { MarketScanner } from "./components/MarketScanner";
 import type {
+  AnnotationCategory,
   CountProgress,
   DashboardData,
   DecisionClassification,
@@ -167,6 +170,16 @@ function App() {
   const [scannerError, setScannerError] = useState<string | null>(
     null,
   );
+  const [annotationSubject, setAnnotationSubject] = useState("");
+  const [annotationCategory, setAnnotationCategory] =
+    useState<AnnotationCategory>("REVIEW");
+  const [annotationNote, setAnnotationNote] = useState("");
+  const [annotationStatus, setAnnotationStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [annotationError, setAnnotationError] = useState<string | null>(
+    null,
+  );
 
   const loadDashboard = useCallback(async (refresh = false) => {
     setState((current) => {
@@ -244,6 +257,57 @@ function App() {
     [scannerSource],
   );
 
+  const submitAnnotation = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const currentData =
+        state.status === "ready" || state.status === "refreshing"
+          ? state.data
+          : null;
+      const subjectId =
+        annotationSubject || currentData?.alerts.alerts[0]?.alert_id;
+
+      if (!subjectId || !annotationNote.trim()) {
+        return;
+      }
+
+      setAnnotationStatus("saving");
+      setAnnotationError(null);
+
+      try {
+        await createOperatorAnnotation({
+          idempotency_key: crypto.randomUUID(),
+          subject_id: subjectId,
+          category: annotationCategory,
+          note: annotationNote.trim(),
+        });
+        const annotations = await fetchOperatorAnnotations();
+        setState((current) => {
+          if (
+            current.status !== "ready" &&
+            current.status !== "refreshing"
+          ) {
+            return current;
+          }
+          return {
+            status: "ready",
+            data: { ...current.data, annotations },
+          };
+        });
+        setAnnotationNote("");
+        setAnnotationStatus("saved");
+      } catch (error: unknown) {
+        setAnnotationStatus("error");
+        setAnnotationError(
+          error instanceof Error
+            ? error.message
+            : "Operator annotation could not be appended.",
+        );
+      }
+    },
+    [annotationCategory, annotationNote, annotationSubject, state],
+  );
+
   if (state.status === "loading") {
     return (
       <main className="state-screen">
@@ -281,6 +345,7 @@ function App() {
     alerts,
     portfolio,
     outcomes,
+    annotations,
     decision,
     scanner,
   } = state.data;
@@ -529,6 +594,127 @@ function App() {
         <p className="evidence-safety">
           Alerts describe verified state transitions only. They cannot place,
           modify, or close orders.
+        </p>
+      </section>
+
+      <section className="panel operator-review">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Separate review record</span>
+            <h2>Operator annotations</h2>
+          </div>
+          <span className="badge badge--neutral">
+            {annotations.annotation_count} appended
+          </span>
+        </div>
+
+        <div className="review-layout">
+          <form className="annotation-form" onSubmit={submitAnnotation}>
+            <label>
+              Alert subject
+              <select
+                disabled={alerts.alerts.length === 0}
+                value={annotationSubject || alerts.alerts[0]?.alert_id || ""}
+                onChange={(event) => setAnnotationSubject(event.target.value)}
+              >
+                {alerts.alerts.map((alert) => (
+                  <option key={alert.alert_id} value={alert.alert_id}>
+                    {alert.severity} · {alert.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Review category
+              <select
+                value={annotationCategory}
+                onChange={(event) =>
+                  setAnnotationCategory(
+                    event.target.value as AnnotationCategory,
+                  )
+                }
+              >
+                <option value="REVIEW">Review</option>
+                <option value="CONTEXT">Context</option>
+                <option value="FOLLOW_UP">Follow up</option>
+              </select>
+            </label>
+
+            <label className="annotation-note">
+              Operator note
+              <textarea
+                maxLength={2000}
+                placeholder="Add evidence context without changing the underlying record."
+                value={annotationNote}
+                onChange={(event) => {
+                  setAnnotationNote(event.target.value);
+                  setAnnotationStatus("idle");
+                }}
+              />
+            </label>
+
+            <div className="annotation-actions">
+              <button
+                className="button"
+                type="submit"
+                disabled={
+                  alerts.alerts.length === 0 ||
+                  !annotationNote.trim() ||
+                  annotationStatus === "saving"
+                }
+              >
+                {annotationStatus === "saving"
+                  ? "Appending…"
+                  : "Append annotation"}
+              </button>
+              <small>
+                Append-only. Notes cannot be edited or deleted.
+              </small>
+            </div>
+
+            {annotationStatus === "saved" && (
+              <p className="annotation-message annotation-message--success">
+                Annotation appended and hash-chain verified.
+              </p>
+            )}
+            {annotationStatus === "error" && annotationError && (
+              <p className="annotation-message annotation-message--error">
+                {annotationError}
+              </p>
+            )}
+          </form>
+
+          <div className="annotation-history">
+            <h3>Recent annotations</h3>
+            {annotations.annotations.length === 0 ? (
+              <p>No operator annotations have been appended.</p>
+            ) : (
+              annotations.annotations
+                .slice(-5)
+                .reverse()
+                .map((annotation) => (
+                  <article key={annotation.annotation_id}>
+                    <div>
+                      <span className="badge badge--neutral">
+                        {formatLabel(annotation.category)}
+                      </span>
+                      <code>#{annotation.sequence}</code>
+                    </div>
+                    <p>{annotation.note}</p>
+                    <small>
+                      Alert {annotation.subject_id.slice(0, 10)} · Commit{" "}
+                      {annotation.software_commit}
+                    </small>
+                  </article>
+                ))
+            )}
+          </div>
+        </div>
+
+        <p className="evidence-safety">
+          Annotations are stored separately and cannot alter the ledger,
+          observations, outcomes, strategy, paper positions, or broker state.
         </p>
       </section>
 

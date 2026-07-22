@@ -4,6 +4,7 @@ from app.analytics.router import router as analytics_router
 from app.backtesting.router import router as backtesting_router
 from app.decision.router import router as decision_router
 from app.market_data.router import router as market_data_router
+from app.operator_review.router import router as operator_review_router
 from app.risk.router import router as risk_router
 from app.scanner.router import router as scanner_router
 from app.signals.router import router as signals_router
@@ -19,6 +20,7 @@ app.include_router(decision_router)
 app.include_router(scanner_router)
 app.include_router(backtesting_router)
 app.include_router(analytics_router)
+app.include_router(operator_review_router)
 
 
 @app.get("/")

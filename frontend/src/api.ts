@@ -1,4 +1,7 @@
 import type {
+  AnnotationAppendResponse,
+  AnnotationCategory,
+  AnnotationListResponse,
   DashboardData,
   DecisionEvaluationResponse,
   EvidenceCockpitResponse,
@@ -121,7 +124,7 @@ export async function fetchDecisionEvaluation(): Promise<DecisionEvaluationRespo
 export async function fetchDashboardData(
   scannerSource: ScannerSource = "synthetic",
 ): Promise<DashboardData> {
-  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, decision, scanner] =
+  const [readiness, explanation, cockpit, alerts, portfolio, outcomes, annotations, decision, scanner] =
     await Promise.all([
       requestJson<ReadinessResponse>("/analytics/readiness"),
       requestJson<ReadinessExplanationResponse>(
@@ -137,6 +140,7 @@ export async function fetchDashboardData(
       requestJson<OutcomeExplorerResponse>(
         "/analytics/outcome-explorer",
       ),
+      fetchOperatorAnnotations(),
       fetchDecisionEvaluation(),
       fetchScannerOpportunities(scannerSource),
     ]);
@@ -148,9 +152,37 @@ export async function fetchDashboardData(
     alerts,
     portfolio,
     outcomes,
+    annotations,
     decision,
     scanner,
   };
+}
+
+export async function fetchOperatorAnnotations(): Promise<AnnotationListResponse> {
+  return requestJson<AnnotationListResponse>(
+    "/operator-review/annotations",
+  );
+}
+
+export async function createOperatorAnnotation(input: {
+  idempotency_key: string;
+  subject_id: string;
+  category: AnnotationCategory;
+  note: string;
+}): Promise<AnnotationAppendResponse> {
+  return requestJson<AnnotationAppendResponse>(
+    "/operator-review/annotations",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...input,
+        subject_type: "ALERT",
+      }),
+    },
+  );
 }
 
 

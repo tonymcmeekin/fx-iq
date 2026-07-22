@@ -204,6 +204,42 @@ export interface OutcomeExplorerResponse {
   protocol_live_trading_permitted: false;
 }
 
+export type AnnotationCategory = "CONTEXT" | "REVIEW" | "FOLLOW_UP";
+
+export interface OperatorAnnotation {
+  sequence: number;
+  annotation_id: string;
+  created_at_utc: string;
+  subject_type: "ALERT" | "SESSION" | "OBSERVATION" | "OUTCOME";
+  subject_id: string;
+  subject_session_date: string | null;
+  category: AnnotationCategory;
+  note: string;
+  software_commit: string;
+  policy_fingerprint: string;
+  previous_hash: string;
+  record_hash: string;
+}
+
+export interface AnnotationListResponse {
+  status: "HEALTHY";
+  annotation_count: number;
+  annotations: OperatorAnnotation[];
+  safe_for_live_trading: false;
+  protocol_live_trading_permitted: false;
+}
+
+export interface AnnotationAppendResponse {
+  status: "CREATED" | "EXISTING";
+  created: boolean;
+  annotation: OperatorAnnotation;
+  files_changed: number;
+  ledger_writes_performed: number;
+  broker_orders_submitted: number;
+  safe_for_live_trading: false;
+  protocol_live_trading_permitted: false;
+}
+
 export type DecisionClassification = "ALLOW" | "WATCH" | "REJECT";
 
 export type ScannerSource = "synthetic" | "oanda";
@@ -253,6 +289,7 @@ export interface DashboardData {
   alerts: OperatorAlertReportResponse;
   portfolio: PortfolioIntelligenceResponse;
   outcomes: OutcomeExplorerResponse;
+  annotations: AnnotationListResponse;
   decision: DecisionEvaluationResponse;
   scanner: ScannerResult;
 }
