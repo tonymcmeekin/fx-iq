@@ -414,6 +414,20 @@ def run_controlled_daily_session(
         observation_store_path=(
             staging_path
         ),
+        existing_pending_markets=set(
+            state["pending_entries"]
+        ),
+        existing_open_markets=set(
+            state["open_positions"]
+        ),
+        existing_portfolio_risk_percent=sum(
+            float(item["candidate_risk_percent"])
+            for collection in (
+                state["pending_entries"],
+                state["open_positions"],
+            )
+            for item in collection.values()
+        ),
         append_completion_event=False,
     )
 

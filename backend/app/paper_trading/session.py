@@ -256,6 +256,9 @@ def run_daily_evaluation(
     software_commit: str = "UNKNOWN",
     append_completion_event: bool = True,
     observation_store_path: Path | None = None,
+    existing_pending_markets: set[str] | None = None,
+    existing_open_markets: set[str] | None = None,
+    existing_portfolio_risk_percent: float = 0.0,
 ) -> dict:
     resolved_protocol = (
         protocol
@@ -328,6 +331,22 @@ def run_daily_evaluation(
     required_markets = (
         resolved_protocol["markets"]
     )
+    resolved_pending_markets = set(
+        existing_pending_markets or ()
+    )
+    resolved_open_markets = set(
+        existing_open_markets or ()
+    )
+
+    if resolved_pending_markets & resolved_open_markets:
+        raise ValueError(
+            "A market cannot be both pending and open."
+        )
+
+    if existing_portfolio_risk_percent < 0:
+        raise ValueError(
+            "Existing portfolio risk cannot be negative."
+        )
 
     supplied_markets = list(
         market_candles
@@ -522,6 +541,7 @@ def run_daily_evaluation(
                     signal.confidence
                 ),
                 "reason": signal.reason,
+                "decision_reason": signal.reason,
                 "candidate_risk_percent": (
                     None
                 ),
@@ -535,6 +555,25 @@ def run_daily_evaluation(
                 "BUY",
                 "SELL",
             }:
+                blocked_status = None
+
+                if market in resolved_pending_markets:
+                    blocked_status = (
+                        "BLOCKED_EXISTING_PENDING_ENTRY"
+                    )
+                    summary["decision_reason"] = (
+                        "Signal not accepted because the market "
+                        "already has a pending paper entry."
+                    )
+                elif market in resolved_open_markets:
+                    blocked_status = (
+                        "BLOCKED_EXISTING_OPEN_POSITION"
+                    )
+                    summary["decision_reason"] = (
+                        "Signal not accepted because the market "
+                        "already has an open paper position."
+                    )
+
                 close_location = (
                     directional_close_location(
                         latest,
@@ -586,7 +625,8 @@ def run_daily_evaluation(
                         risk_decision.reason
                     ),
                     "entry_status": (
-                        "PENDING_NEXT_COMPLETE_CANDLE"
+                        blocked_status
+                        or "PENDING_NEXT_COMPLETE_CANDLE"
                     ),
                     "broker_order_submitted": (
                         False
@@ -625,7 +665,7 @@ def run_daily_evaluation(
 
                 summary[
                     "pending_entry"
-                ] = True
+                ] = blocked_status is None
 
             market_summaries.append(
                 summary
@@ -645,9 +685,13 @@ def run_daily_evaluation(
                         )
                         for item
                         in market_summaries
+                    ) + len(
+                        resolved_pending_markets
                     )
 
-                    portfolio_risk_percent = sum(
+                    portfolio_risk_percent = (
+                        existing_portfolio_risk_percent
+                        + sum(
                         float(
                             item[
                                 "candidate_risk_percent"
@@ -659,6 +703,7 @@ def run_daily_evaluation(
                         if item[
                             "pending_entry"
                         ]
+                        )
                     )
 
                     observation_recorded_at_utc = session_time_utc
@@ -702,7 +747,7 @@ def run_daily_evaluation(
                             ),
                             decision_reason=str(
                                 summary[
-                                    "reason"
+                                    "decision_reason"
                                 ]
                             ),
                             portfolio_context=(
@@ -710,7 +755,9 @@ def run_daily_evaluation(
                                     pending_entries_total=(
                                         pending_entries_total
                                     ),
-                                    open_positions_total=0,
+                                    open_positions_total=len(
+                                        resolved_open_markets
+                                    ),
                                     correlated_positions=0,
                                     portfolio_risk_percent=(
                                         portfolio_risk_percent
@@ -790,7 +837,10 @@ def run_daily_evaluation(
                 actionable_signals
             ),
             "pending_entries": (
-                actionable_signals
+                sum(
+                    summary["pending_entry"]
+                    for summary in market_summaries
+                )
             ),
             "positions_opened": 0,
             "positions_closed": 0,

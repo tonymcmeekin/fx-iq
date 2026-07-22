@@ -163,6 +163,22 @@ def make_observation_candles(
     ]
 
 
+def make_breakout_observation_candles() -> list[Candle]:
+    candles = make_observation_candles()
+    latest = candles[-1]
+    candles[-1] = Candle(
+        symbol=latest.symbol,
+        timeframe=latest.timeframe,
+        timestamp=latest.timestamp,
+        open=1.0100,
+        high=1.2000,
+        low=1.0000,
+        close=1.1900,
+        volume=2000,
+    )
+    return candles
+
+
 def test_orchestrator_collects_frozen_markets_in_order(
     tmp_path,
 ):
@@ -483,6 +499,81 @@ def test_repeated_signal_advances_existing_pending_entry(
     assert result["status"] == "COMPLETED"
     assert result["positions_opened"] == 1
     assert result["broker_orders_sent"] == 0
+
+
+def test_repeated_signal_observation_is_not_accepted_twice(
+    tmp_path,
+):
+    ledger_path = tmp_path / "events.jsonl"
+    state_path = tmp_path / "state.json"
+    journal_path = tmp_path / "transition.json"
+    candle_directory = tmp_path / "candles"
+    observation_path = tmp_path / "observations.jsonl"
+    first_candles = (
+        make_breakout_observation_candles()
+    )
+
+    shared = {
+        "api_token": "test-token",
+        "ledger_path": ledger_path,
+        "state_path": state_path,
+        "journal_path": journal_path,
+        "candle_store_directory": candle_directory,
+        "observation_store_path": observation_path,
+        "protocol": make_protocol(),
+        "policy_verifier": (lambda: POLICY_FINGERPRINT),
+        "software_commit": "test-commit",
+    }
+
+    run_controlled_daily_session(
+        **shared,
+        session_date=SESSION_DATE,
+        collector=(lambda **_: first_candles),
+        session_time_utc=SESSION_TIME,
+    )
+
+    repeated_candle = Candle(
+        symbol="EUR_GBP",
+        timeframe="D",
+        timestamp=(
+            first_candles[-1].timestamp
+            + timedelta(days=1)
+        ),
+        open=1.1900,
+        high=1.3000,
+        low=1.1800,
+        close=1.2900,
+        volume=2000,
+    )
+
+    run_controlled_daily_session(
+        **shared,
+        session_date=(
+            SESSION_DATE + timedelta(days=1)
+        ),
+        collector=(
+            lambda **_: [
+                *first_candles,
+                repeated_candle,
+            ]
+        ),
+        session_time_utc=(
+            SESSION_TIME + timedelta(days=1)
+        ),
+    )
+
+    observations = read_observations(
+        observation_path
+    )
+
+    assert len(observations) == 2
+    assert observations[0].trade_accepted is True
+    assert observations[1].trade_accepted is False
+    assert (
+        "already has a pending paper entry"
+        in observations[1].decision_reason
+    )
+    assert observations[1].portfolio_context.pending_entries_total == 1
 
 
 def test_hold_signal_does_not_create_pending_entry(

@@ -18,7 +18,7 @@ from app.features import (
 from app.market_data.models import Candle
 from app.signals.models import TradeSignal
 
-OBSERVATION_SCHEMA_VERSION = 1
+OBSERVATION_SCHEMA_VERSION = 2
 
 TradeDirection = Literal[
     "BUY",

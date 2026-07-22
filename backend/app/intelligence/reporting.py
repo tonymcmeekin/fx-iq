@@ -7,7 +7,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from app.intelligence.observations import TradeObservation
+from app.intelligence.observations import (
+    OBSERVATION_SCHEMA_VERSION,
+    TradeObservation,
+)
 from app.paper_trading.ledger import verify_ledger
 
 
@@ -202,6 +205,16 @@ def build_observation_report(
         for observation in observations
     ):
         warnings.append("No observation outcomes are populated yet.")
+    legacy_observations = sum(
+        observation.schema_version
+        < OBSERVATION_SCHEMA_VERSION
+        for observation in observations
+    )
+    if legacy_observations:
+        warnings.append(
+            f"{legacy_observations} legacy observation records "
+            "predate portfolio-aware acceptance semantics."
+        )
 
     return {
         "status": (
@@ -227,6 +240,15 @@ def build_observation_report(
         "outcomes_populated": sum(
             observation.outcome is not None
             for observation in observations
+        ),
+        "legacy_semantics_observations": (
+            legacy_observations
+        ),
+        "by_schema_version": _counter_rows(
+            [
+                str(observation.schema_version)
+                for observation in observations
+            ]
         ),
         "by_instrument": _counter_rows(
             [observation.instrument for observation in observations]
