@@ -7,7 +7,6 @@ from app.market_data.oanda import (
     download_oanda_candles,
 )
 
-
 DownloadFunction = Callable[..., dict]
 
 

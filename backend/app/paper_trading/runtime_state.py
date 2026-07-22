@@ -3,8 +3,6 @@ import os
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-
 
 STATE_VERSION = "1.0"
 

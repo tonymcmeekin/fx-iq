@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 from app.market_data.models import Candle
 
-
 TrendRegime = Literal[
     "TRENDING_UP",
     "TRENDING_DOWN",

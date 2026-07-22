@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from app.ai.regime import MarketRegime
 from app.signals.models import TradeSignal
 
-
 SignalDecision = Literal[
     "APPROVED",
     "REJECTED",

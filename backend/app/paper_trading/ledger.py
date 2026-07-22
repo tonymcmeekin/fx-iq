@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-
 GENESIS_HASH = "0" * 64
 
 ALLOWED_EVENT_TYPES = {

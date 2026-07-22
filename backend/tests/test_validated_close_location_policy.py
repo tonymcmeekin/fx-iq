@@ -14,7 +14,6 @@ from app.paper_trading.policy import (
     verify_frozen_policy,
 )
 
-
 PROTOCOL_PATH = Path(
     "research_protocols/"
     "prospective_paper_trading_protocol.json"

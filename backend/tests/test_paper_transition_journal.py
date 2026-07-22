@@ -19,7 +19,6 @@ from app.paper_trading.transition_journal import (
     write_transition_journal,
 )
 
-
 SESSION_DATE = date(
     2026,
     7,

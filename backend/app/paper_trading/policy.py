@@ -3,7 +3,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-
 POLICY_NAME = "validated_close_location_soft_risk"
 POLICY_VERSION = "1.0"
 

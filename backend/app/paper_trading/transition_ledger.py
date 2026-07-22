@@ -11,7 +11,6 @@ from app.paper_trading.session import (
     utc_isoformat,
 )
 
-
 POSITION_EVENT_TYPES = {
     "PAPER_POSITION_OPENED",
     "PAPER_POSITION_MARKED",

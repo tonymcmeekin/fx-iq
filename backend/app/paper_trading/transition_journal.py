@@ -12,7 +12,6 @@ from app.paper_trading.transition_ledger import (
     validate_transition_event,
 )
 
-
 JOURNAL_VERSION = "1.0"
 
 PREPARED = "PREPARED"

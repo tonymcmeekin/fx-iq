@@ -8,12 +8,15 @@ test:
 	cd backend && . .venv/bin/activate && pytest
 
 lint:
-	cd backend && . .venv/bin/activate && ruff check app tests
+	cd backend && . .venv/bin/activate && ruff check app tests scripts/check_source_privacy.py
+
+privacy:
+	cd backend && . .venv/bin/activate && python scripts/check_source_privacy.py
 
 format:
-	cd backend && . .venv/bin/activate && ruff format app tests
+	cd backend && . .venv/bin/activate && ruff format app tests scripts/check_source_privacy.py
 
 check:
-	make format
 	make lint
+	make privacy
 	make test

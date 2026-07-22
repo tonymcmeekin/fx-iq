@@ -12,7 +12,6 @@ from app.paper_trading.transition_ledger import (
     transition_event_id,
 )
 
-
 SESSION_DATE = date(
     2026,
     7,

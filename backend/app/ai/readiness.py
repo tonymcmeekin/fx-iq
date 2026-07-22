@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 ReadinessStatus = Literal[
     "RESEARCH_ONLY",
     "PAPER_TRADING_CANDIDATE",

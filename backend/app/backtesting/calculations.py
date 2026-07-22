@@ -3,7 +3,6 @@ from app.analytics.models import EquityPoint
 from app.backtesting.models import BacktestResult, MockTrade
 from app.trading.models import SimulatedTrade
 
-
 INITIAL_BALANCE = 10000.0
 
 

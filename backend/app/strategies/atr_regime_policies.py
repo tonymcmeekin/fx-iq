@@ -9,7 +9,6 @@ from app.strategies.atr_breakout import (
     generate_atr_breakout_signal,
 )
 
-
 REGIME_LOOKBACK = 50
 MINIMUM_REGIME_CONFIDENCE = 0.6
 

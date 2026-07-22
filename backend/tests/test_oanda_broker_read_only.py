@@ -8,7 +8,7 @@ from app.broker import (
     reconcile_open_positions,
 )
 
-ACCOUNT_ID = "101-001-12345678-001"
+ACCOUNT_ID = "999-001-12345678-001"
 
 
 class FakeResponse:
@@ -90,7 +90,7 @@ def test_lists_accessible_accounts_using_get():
         [
             account_list_payload(
                 ACCOUNT_ID,
-                "101-001-87654321-001",
+                "999-001-87654321-001",
             )
         ]
     )
@@ -104,7 +104,7 @@ def test_lists_accessible_accounts_using_get():
 
     assert result == (
         ACCOUNT_ID,
-        "101-001-87654321-001",
+        "999-001-87654321-001",
     )
 
     request = opener.requests[0]
@@ -202,7 +202,7 @@ def test_multiple_accounts_require_explicit_selection():
         [
             account_list_payload(
                 ACCOUNT_ID,
-                "101-001-87654321-001",
+                "999-001-87654321-001",
             )
         ]
     )

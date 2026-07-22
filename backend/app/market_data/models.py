@@ -14,7 +14,7 @@ class Candle(BaseModel):
     volume: float = Field(ge=0)
 
     @model_validator(mode="after")
-    def validate_price_range(self) -> "Candle":
+    def validate_price_range(self) -> Candle:
         if self.high < self.low:
             raise ValueError("high must be greater than or equal to low")
 

@@ -34,7 +34,6 @@ from app.paper_trading.transition_ledger import (
     append_transition_events,
 )
 
-
 MARKET = "EUR_GBP"
 
 SESSION_DATE = date(

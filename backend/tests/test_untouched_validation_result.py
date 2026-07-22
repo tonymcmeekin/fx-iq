@@ -2,7 +2,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 RESULTS_PATH = Path(
     "research_results/"
     "untouched_cross_market_validation_results.json"

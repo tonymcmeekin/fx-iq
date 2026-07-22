@@ -2,7 +2,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 PROTOCOL_PATH = Path(
     "research_protocols/"
     "prospective_paper_trading_protocol.json"

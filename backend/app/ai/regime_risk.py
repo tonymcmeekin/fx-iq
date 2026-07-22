@@ -2,7 +2,6 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field
 
-
 RISK_POLICY_VERSION = "1.0"
 
 MINIMUM_RISK_PERCENT = 0.10

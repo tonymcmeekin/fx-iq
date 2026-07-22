@@ -15,7 +15,6 @@ from app.paper_trading.runtime_state import (
     write_runtime_state,
 )
 
-
 SIGNAL_TIME = datetime(
     2026,
     7,

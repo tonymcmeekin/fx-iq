@@ -8,7 +8,6 @@ from app.paper_trading.collector import (
     merge_candles,
 )
 
-
 FIELDNAMES = [
     "timestamp",
     "symbol",

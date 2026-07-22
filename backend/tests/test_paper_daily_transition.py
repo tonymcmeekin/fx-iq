@@ -19,7 +19,6 @@ from app.paper_trading.runtime_state import (
     read_runtime_state,
 )
 
-
 MARKET = "EUR_GBP"
 
 POLICY_FINGERPRINT = (

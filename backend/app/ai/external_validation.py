@@ -3,7 +3,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-
 PROTOCOL_VERSION = "1.0"
 PROTOCOL_FREEZE_COMMIT = "cd66c9b"
 

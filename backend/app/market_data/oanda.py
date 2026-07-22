@@ -4,7 +4,6 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-
 OANDA_HOSTS = {
     "practice": "https://api-fxpractice.oanda.com",
     "live": "https://api-fxtrade.oanda.com",

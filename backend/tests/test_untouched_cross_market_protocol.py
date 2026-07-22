@@ -2,7 +2,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 MANIFEST_PATH = Path(
     "research_protocols/"
     "untouched_market_data_manifest.json"

@@ -6,7 +6,6 @@ from scripts.audit_nested_risk_policy_overlap import (
     statistics,
 )
 
-
 REDUCED_GROUP = (
     "TRENDING_UP",
     "NORMAL",
