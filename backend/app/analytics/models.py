@@ -273,3 +273,38 @@ class AnalyticsReadinessExplanationResponse(AnalyticsSafetyResponse):
     safety_statement: str
     paper_observation_allowed: bool = False
     live_trading_allowed: Literal[False] = False
+
+
+class EvidenceCockpitResponse(AnalyticsSafetyResponse):
+    """Canonical read-only prospective evidence cockpit."""
+
+    schema_version: int = 1
+    status: str
+    generated_at_utc: str
+    current_software_commit: str
+    tracked_source_clean: bool
+    current_policy_fingerprint: str
+    protocol_mode: Literal["SIMULATION_ONLY"] = "SIMULATION_ONLY"
+    live_order_submission_permitted: Literal[False] = False
+    runtime_health: str | None = None
+    operator_status: str | None = None
+    evidence_gate_status: str | None = None
+    observation_integrity_status: str | None = None
+    candidate_balance: float | None = None
+    shadow_balance: float | None = None
+    broker_orders_sent: int = Field(default=0, ge=0)
+    last_completed_session_date: str | None = None
+    next_session_date: str | None = None
+    next_action: str
+    markets_aligned: bool
+    markets: list[dict[str, Any]] = Field(default_factory=list)
+    pending_entries: list[dict[str, Any]] = Field(default_factory=list)
+    open_positions: list[dict[str, Any]] = Field(default_factory=list)
+    observations_recorded: int = Field(default=0, ge=0)
+    observation_outcomes_populated: int = Field(default=0, ge=0)
+    session_lineage: list[dict[str, Any]] = Field(default_factory=list)
+    software_changed_since_last_session: bool
+    policy_matches_last_session: bool
+    blocking_issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    readiness_next_actions: list[str] = Field(default_factory=list)

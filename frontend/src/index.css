@@ -149,6 +149,76 @@ button {
   border-color: #376793;
 }
 
+.evidence-cockpit {
+  margin-top: 1rem;
+  border-color: #376793;
+  background:
+    linear-gradient(135deg, rgb(30 86 130 / 16%), transparent 60%),
+    rgb(17 28 43 / 94%);
+}
+
+.evidence-cockpit h2 {
+  margin-top: 0.35rem;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.evidence-grid > div {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #293c53;
+  border-radius: 0.8rem;
+  background: rgb(9 17 27 / 55%);
+}
+
+.evidence-grid span,
+.evidence-grid small {
+  display: block;
+  color: #91a1b5;
+}
+
+.evidence-grid span {
+  margin-bottom: 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.evidence-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #e6f1fd;
+  font-size: 1rem;
+}
+
+.evidence-grid small {
+  margin-top: 0.4rem;
+  line-height: 1.4;
+}
+
+.evidence-alert {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #7d3b47;
+  border-radius: 0.75rem;
+  color: #ffc1c8;
+  background: #431f27;
+}
+
+.evidence-safety {
+  margin: 1rem 0 0;
+  color: #9bacbf;
+  font-size: 0.88rem;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -316,6 +386,10 @@ footer {
   .hero {
     align-items: flex-start;
   }
+
+  .evidence-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 620px) {
@@ -333,6 +407,10 @@ footer {
 
   .button--secondary {
     width: 100%;
+  }
+
+  .evidence-grid {
+    grid-template-columns: 1fr;
   }
 }
 

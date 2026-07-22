@@ -264,6 +264,7 @@ function App() {
   const {
     readiness,
     explanation,
+    cockpit,
     decision,
     scanner,
   } = state.data;
@@ -272,6 +273,10 @@ function App() {
   const warningCount =
     readiness.warnings.length +
     readiness.observation_integrity_warnings.length;
+  const latestLineage = cockpit.session_lineage.at(-1);
+  const latestMarketTimestamp = cockpit.markets.find(
+    (market) => market.latest_complete_timestamp,
+  )?.latest_complete_timestamp;
 
   return (
     <main className="dashboard">
@@ -372,6 +377,87 @@ function App() {
             </span>
           </div>
         </article>
+      </section>
+
+      <section className="panel evidence-cockpit">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Verified operating evidence</span>
+            <h2>Evidence cockpit</h2>
+          </div>
+          <span
+            className={
+              cockpit.status === "HEALTHY"
+                ? "badge badge--positive"
+                : "badge badge--danger"
+            }
+          >
+            {formatLabel(cockpit.status)}
+          </span>
+        </div>
+
+        <div className="evidence-grid">
+          <div>
+            <span>Next safe action</span>
+            <strong>{formatLabel(cockpit.next_action)}</strong>
+          </div>
+          <div>
+            <span>Last / next session</span>
+            <strong>
+              {cockpit.last_completed_session_date ?? "None"} →{" "}
+              {cockpit.next_session_date ?? "Pending"}
+            </strong>
+          </div>
+          <div>
+            <span>Latest complete candle</span>
+            <strong>{latestMarketTimestamp ?? "Unavailable"}</strong>
+            <small>
+              {cockpit.markets.length} markets ·{" "}
+              {cockpit.markets_aligned ? "aligned" : "misaligned"}
+            </small>
+          </div>
+          <div>
+            <span>Positions</span>
+            <strong>
+              {cockpit.pending_entries.length} pending ·{" "}
+              {cockpit.open_positions.length} open
+            </strong>
+            <small>Broker orders sent: {cockpit.broker_orders_sent}</small>
+          </div>
+          <div>
+            <span>Software lineage</span>
+            <strong>{cockpit.current_software_commit}</strong>
+            <small>
+              {cockpit.tracked_source_clean ? "Source clean" : "Source changed"}
+              {cockpit.software_changed_since_last_session
+                ? " · changed since session"
+                : " · matches session"}
+            </small>
+          </div>
+          <div>
+            <span>Policy & receipt</span>
+            <strong>
+              {cockpit.policy_matches_last_session
+                ? "Policy matched"
+                : "Policy mismatch"}
+            </strong>
+            <small>
+              Latest receipt: {formatLabel(latestLineage?.receipt_status ?? "Unavailable")}
+            </small>
+          </div>
+        </div>
+
+        {cockpit.blocking_issues.length > 0 && (
+          <div className="evidence-alert" role="alert">
+            <strong>Action paused</strong>
+            <span>{cockpit.blocking_issues.join(" ")}</span>
+          </div>
+        )}
+
+        <p className="evidence-safety">
+          Simulation only. This cockpit can inspect evidence, but it cannot
+          submit or authorize broker orders.
+        </p>
       </section>
 
       <section className={decisionPanelClass(decision.decision)}>

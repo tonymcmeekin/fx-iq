@@ -10,11 +10,16 @@ from app.analytics.attribution_reporting import (
     AttributionReportError,
     perform_report,
 )
+from app.analytics.evidence_cockpit_reporting import (
+    EvidenceCockpitError,
+    build_evidence_cockpit,
+)
 from app.analytics.models import (
     AnalyticsErrorResponse,
     AnalyticsOverviewResponse,
     AnalyticsReadinessExplanationResponse,
     AnalyticsReadinessResponse,
+    EvidenceCockpitResponse,
     OperatorStatusResponse,
     ProspectivePaperHealthResponse,
     StrategyAttributionResponse,
@@ -50,6 +55,31 @@ router = APIRouter(
     prefix="/analytics",
     tags=["Analytics"],
 )
+
+
+@router.get(
+    "/evidence-cockpit",
+    response_model=EvidenceCockpitResponse,
+    responses={409: {"model": AnalyticsErrorResponse}},
+)
+def get_evidence_cockpit() -> dict[str, Any]:
+    """Return the canonical non-mutating paper-evidence cockpit."""
+    try:
+        return build_evidence_cockpit()
+    except EvidenceCockpitError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "ERROR",
+                "error": str(error),
+                "network_calls_made": 0,
+                "files_changed": 0,
+                "ledger_writes_performed": 0,
+                "broker_orders_submitted": 0,
+                "safe_for_live_trading": False,
+                "protocol_live_trading_permitted": False,
+            },
+        ) from error
 
 
 @router.get(
