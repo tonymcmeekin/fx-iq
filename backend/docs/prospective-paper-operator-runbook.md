@@ -253,6 +253,19 @@ After separately approving a rehearsal, calculate protection prices around the
 current practice quote and run:
 
 ```bash
+python scripts/run_oanda_practice_canary_preflight.py \
+  --instrument EUR_GBP \
+  --direction BUY \
+  --maximum-loss-gbp 50 \
+  --reserved-costs-gbp 10
+```
+
+The preflight command loads only the allow-listed Practice settings from
+`.env`, performs GET requests only, proposes protection prices, and prints the
+exact GBP allowance. It has no confirmation phrase or order-submission path.
+Review its output before separately approving and running the rehearsal:
+
+```bash
 python scripts/run_oanda_practice_canary_rehearsal.py \
   --rehearsal-id UNIQUE-ID \
   --instrument EUR_GBP \

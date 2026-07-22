@@ -7,6 +7,12 @@ from app.broker.canary_gateway import (
     CanaryRehearsalResult,
     OandaCanaryGateway,
 )
+from app.broker.canary_preflight import (
+    CanaryPreflightError,
+    CanaryPreflightRequest,
+    CanaryPreflightResult,
+    OandaCanaryReadOnlyPreflight,
+)
 from app.broker.coordinator import (
     CoordinatedExecution,
     ExecutionCoordinationError,
@@ -48,6 +54,9 @@ __all__ = [
     "BrokerReconciliationReport",
     "CanaryEnvironment",
     "CanaryGatewayError",
+    "CanaryPreflightError",
+    "CanaryPreflightRequest",
+    "CanaryPreflightResult",
     "CanaryRehearsalRequest",
     "CanaryRehearsalResult",
     "CoordinatedExecution",
@@ -55,6 +64,7 @@ __all__ = [
     "ExecutionCoordinator",
     "OandaAccountSnapshot",
     "OandaCanaryGateway",
+    "OandaCanaryReadOnlyPreflight",
     "OandaPracticeReadOnlyClient",
     "OandaPracticeShadowGateway",
     "OandaReadOnlyError",
