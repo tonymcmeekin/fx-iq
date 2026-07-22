@@ -42,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--direction", choices=["BUY", "SELL"], required=True)
     parser.add_argument("--stop-loss", type=float, required=True)
     parser.add_argument("--take-profit", type=float, required=True)
+    parser.add_argument("--maximum-loss-gbp", type=float, default=50.0)
+    parser.add_argument("--reserved-costs-gbp", type=float, default=10.0)
     parser.add_argument("--confirmation", required=True)
     return parser
 
@@ -66,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
                 direction=BrokerDirection(arguments.direction),
                 stop_loss=arguments.stop_loss,
                 take_profit=arguments.take_profit,
+                maximum_loss_gbp=arguments.maximum_loss_gbp,
+                reserved_costs_gbp=arguments.reserved_costs_gbp,
             )
         )
         audit, created = append_canary_audit(AUDIT_PATH, result)

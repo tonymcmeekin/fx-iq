@@ -676,7 +676,7 @@ function App() {
             >
               {canaryReadiness.qualifying_rehearsal_count}/
               {canaryReadiness.required_rehearsals} qualifying ·{" "}
-              {canaryReadiness.failed_rehearsal_count} failed · live locked
+              {canaryReadiness.failed_rehearsal_count} failed · GSLO £50 cap · live locked
             </span>
           </div>
         </article>

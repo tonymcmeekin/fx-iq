@@ -8,6 +8,7 @@ import json
 import os
 from dataclasses import asdict
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,8 @@ def _parse(text: str) -> list[dict[str, Any]]:
             raise CanaryAuditError(f"Invalid canary audit JSON at line {line_number}.") from error
         if not isinstance(record, dict):
             raise CanaryAuditError(f"Invalid canary audit record at line {line_number}.")
-        if record.get("schema_version") != 1 or record.get("sequence") != line_number:
+        schema_version = record.get("schema_version")
+        if schema_version not in {1, 2} or record.get("sequence") != line_number:
             raise CanaryAuditError(f"Canary audit sequence mismatch at line {line_number}.")
         if record.get("previous_hash") != previous:
             raise CanaryAuditError(f"Canary audit chain mismatch at line {line_number}.")
@@ -67,6 +69,37 @@ def _parse(text: str) -> list[dict[str, Any]]:
         }
         if any(record.get(key) != value for key, value in expected_invariants.items()):
             raise CanaryAuditError(f"Canary audit safety invariant failed at line {line_number}.")
+        if schema_version == 2:
+            try:
+                budget = Decimal(str(record.get("loss_budget_gbp")))
+                reserved = Decimal(str(record.get("reserved_costs_gbp")))
+                stop_risk = Decimal(str(record.get("stop_loss_risk_gbp")))
+                premium = Decimal(str(record.get("gslo_premium_gbp")))
+                worst_case = Decimal(str(record.get("worst_case_loss_gbp")))
+                remaining = Decimal(str(record.get("remaining_loss_budget_gbp")))
+            except InvalidOperation as error:
+                raise CanaryAuditError(
+                    f"Invalid canary GBP budget at line {line_number}."
+                ) from error
+            v2_invariants = {
+                "guaranteed_stop_loss": True,
+                "account_home_currency": "GBP",
+                "quote_loss_conversion_factor": "1",
+            }
+            if (
+                any(record.get(key) != value for key, value in v2_invariants.items())
+                or not all(
+                    value.is_finite()
+                    for value in (budget, reserved, stop_risk, premium, worst_case, remaining)
+                )
+                or budget <= 0
+                or budget > Decimal("50")
+                or any(value < 0 for value in (reserved, stop_risk, premium, worst_case, remaining))
+                or worst_case != stop_risk + premium + reserved
+                or worst_case > budget
+                or remaining != budget - worst_case
+            ):
+                raise CanaryAuditError(f"Canary GBP budget invariant failed at line {line_number}.")
         records.append(record)
         seen_ids.add(rehearsal_id)
         previous = record_hash
@@ -133,7 +166,7 @@ def append_canary_audit(
                 )
             return existing, False
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "sequence": len(records) + 1,
             "completed_at_utc": resolved_time.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             **result_payload,

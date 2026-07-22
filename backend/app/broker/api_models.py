@@ -23,6 +23,7 @@ class CanaryReadinessResponse(BrokerApiModel):
     ]
     rehearsal_count: int = Field(ge=0)
     qualifying_rehearsal_count: int = Field(ge=0)
+    gslo_rehearsal_count: int = Field(ge=0)
     failed_rehearsal_count: int = Field(ge=0)
     unresolved_failure_count: int = Field(ge=0)
     required_rehearsals: int = Field(ge=1)
@@ -37,6 +38,9 @@ class CanaryReadinessResponse(BrokerApiModel):
     latest_instrument: str | None
     latest_failure_at_utc: datetime | None
     latest_failure_stage: str | None
+    latest_loss_budget_gbp: str | None
+    latest_worst_case_loss_gbp: str | None
+    latest_gslo_premium_gbp: str | None
     live_canary_build_enabled: Literal[False] = False
     live_execution_locked: Literal[True] = True
     live_trading_allowed: Literal[False] = False

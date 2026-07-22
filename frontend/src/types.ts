@@ -360,6 +360,7 @@ export interface CanaryReadinessResponse {
   status: "NO_EVIDENCE" | "REHEARSING" | "REHEARSAL_TARGET_MET" | "ACTION_REQUIRED" | "INTEGRITY_ERROR";
   rehearsal_count: number;
   qualifying_rehearsal_count: number;
+  gslo_rehearsal_count: number;
   failed_rehearsal_count: number;
   unresolved_failure_count: number;
   required_rehearsals: number;
@@ -374,6 +375,9 @@ export interface CanaryReadinessResponse {
   latest_instrument: string | null;
   latest_failure_at_utc: string | null;
   latest_failure_stage: string | null;
+  latest_loss_budget_gbp: string | null;
+  latest_worst_case_loss_gbp: string | null;
+  latest_gslo_premium_gbp: string | null;
   live_canary_build_enabled: false;
   live_execution_locked: true;
   live_trading_allowed: false;

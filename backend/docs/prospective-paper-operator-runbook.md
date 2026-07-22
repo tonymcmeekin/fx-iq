@@ -259,8 +259,19 @@ python scripts/run_oanda_practice_canary_rehearsal.py \
   --direction BUY \
   --stop-loss PRICE \
   --take-profit PRICE \
+  --maximum-loss-gbp 50 \
+  --reserved-costs-gbp 10 \
   --confirmation EXECUTE_ONE_UNIT_OANDA_PRACTICE_REHEARSAL
 ```
+
+Qualifying rehearsals require a GBP-denominated account, an instrument quoted
+directly in GBP, broker-reported GSLO availability and minimum distance, and a
+broker loss-conversion factor of exactly 1. The order uses
+`guaranteedStopLossOnFill`, not a normal stop. Before submission, the gateway
+calculates the worst allowed entry from `priceBound`, loss to the GSLO, the
+broker-reported GSLO premium, and the explicit reserved-cost allowance. Their
+sum must not exceed £50. Older normal-stop receipts remain in lifetime history
+but do not count toward the qualifying GSLO rehearsal streak.
 
 Never reuse a rehearsal ID. The gateway checks OANDA for the derived client ID
 before price collection or submission. If post-fill verification fails, it

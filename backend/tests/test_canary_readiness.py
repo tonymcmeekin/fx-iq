@@ -20,13 +20,13 @@ def result(index: int) -> CanaryRehearsalResult:
         environment="practice",
         rehearsal_id=f"readiness-rehearsal-{index:03d}",
         account_fingerprint="a" * 64,
-        instrument="EUR_USD",
+        instrument="EUR_GBP",
         direction="BUY",
         units=1,
         entry_transaction_id=f"entry-{index}",
         trade_id=f"trade-{index}",
         close_transaction_id=f"close-{index}",
-        network_calls_made=7,
+        network_calls_made=8,
         practice_entry_orders_submitted=1,
         practice_close_orders_submitted=1,
         live_orders_submitted=0,
@@ -139,6 +139,7 @@ def test_failure_requires_action_and_resets_qualifying_rehearsals(tmp_path):
     assert report["status"] == "ACTION_REQUIRED"
     assert report["rehearsal_count"] == 1
     assert report["qualifying_rehearsal_count"] == 0
+    assert report["gslo_rehearsal_count"] == 1
     assert report["failed_rehearsal_count"] == 1
     assert report["unresolved_failure_count"] == 1
     assert report["operational_rehearsal_target_met"] is False

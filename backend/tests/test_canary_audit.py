@@ -17,13 +17,13 @@ def result(rehearsal_id="canary-audit-001"):
         environment="practice",
         rehearsal_id=rehearsal_id,
         account_fingerprint="a" * 64,
-        instrument="EUR_USD",
+        instrument="EUR_GBP",
         direction="BUY",
         units=1,
         entry_transaction_id="1",
         trade_id="2",
         close_transaction_id="3",
-        network_calls_made=7,
+        network_calls_made=8,
         practice_entry_orders_submitted=1,
         practice_close_orders_submitted=1,
         live_orders_submitted=0,
@@ -77,4 +77,20 @@ def test_canary_audit_rejects_unsafe_record_even_with_recomputed_hash(tmp_path):
     path.write_text(canary_audit._canonical(payload) + "\n")
 
     with pytest.raises(CanaryAuditError, match="safety invariant"):
+        read_canary_audit(path)
+
+
+def test_canary_audit_rejects_inconsistent_gbp_calculation_with_recomputed_hash(tmp_path):
+    from app.broker import canary_audit
+
+    path = tmp_path / "canary.jsonl"
+    append_canary_audit(path, result())
+    payload = json.loads(path.read_text())
+    payload["worst_case_loss_gbp"] = "50"
+    unhashed = dict(payload)
+    unhashed.pop("record_hash")
+    payload["record_hash"] = canary_audit._hash(unhashed)
+    path.write_text(canary_audit._canonical(payload) + "\n")
+
+    with pytest.raises(CanaryAuditError, match="GBP budget invariant"):
         read_canary_audit(path)

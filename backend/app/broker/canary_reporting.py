@@ -36,6 +36,7 @@ def build_canary_readiness_report(
             "status": "INTEGRITY_ERROR",
             "rehearsal_count": 0,
             "qualifying_rehearsal_count": 0,
+            "gslo_rehearsal_count": 0,
             "failed_rehearsal_count": 0,
             "unresolved_failure_count": 0,
             "required_rehearsals": MINIMUM_PRACTICE_REHEARSALS,
@@ -50,6 +51,9 @@ def build_canary_readiness_report(
             "latest_instrument": None,
             "latest_failure_at_utc": None,
             "latest_failure_stage": None,
+            "latest_loss_budget_gbp": None,
+            "latest_worst_case_loss_gbp": None,
+            "latest_gslo_premium_gbp": None,
             "live_canary_build_enabled": LIVE_CANARY_BUILD_ENABLED,
             "live_execution_locked": True,
             "live_trading_allowed": False,
@@ -72,9 +76,13 @@ def build_canary_readiness_report(
     qualifying_records = [
         record
         for record in records
-        if latest_failure_time is None
-        or datetime.fromisoformat(str(record["completed_at_utc"]).replace("Z", "+00:00"))
-        > latest_failure_time
+        if record.get("schema_version") == 2
+        and record.get("guaranteed_stop_loss") is True
+        and (
+            latest_failure_time is None
+            or datetime.fromisoformat(str(record["completed_at_utc"]).replace("Z", "+00:00"))
+            > latest_failure_time
+        )
     ]
     qualifying_count = len(qualifying_records)
     unresolved_failures = sum(
@@ -116,6 +124,11 @@ def build_canary_readiness_report(
         ),
         "rehearsal_count": rehearsal_count,
         "qualifying_rehearsal_count": qualifying_count,
+        "gslo_rehearsal_count": sum(
+            1
+            for record in records
+            if record.get("schema_version") == 2 and record.get("guaranteed_stop_loss") is True
+        ),
         "failed_rehearsal_count": len(failures),
         "unresolved_failure_count": unresolved_failures,
         "required_rehearsals": MINIMUM_PRACTICE_REHEARSALS,
@@ -136,6 +149,11 @@ def build_canary_readiness_report(
             None if latest_failure is None else latest_failure["failed_at_utc"]
         ),
         "latest_failure_stage": None if latest_failure is None else latest_failure["stage"],
+        "latest_loss_budget_gbp": None if latest is None else latest.get("loss_budget_gbp"),
+        "latest_worst_case_loss_gbp": (
+            None if latest is None else latest.get("worst_case_loss_gbp")
+        ),
+        "latest_gslo_premium_gbp": None if latest is None else latest.get("gslo_premium_gbp"),
         "live_canary_build_enabled": LIVE_CANARY_BUILD_ENABLED,
         "live_execution_locked": True,
         "live_trading_allowed": False,
